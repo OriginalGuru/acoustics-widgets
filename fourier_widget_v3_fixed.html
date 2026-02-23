@@ -614,7 +614,7 @@ function drawSpectrum() {
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, W, H);
 
-  const pL=38, pR=10, pT=14, pB=38;
+  const pL=38, pR=10, pT=26, pB=38;
   const iW = W-pL-pR, iH = H-pT-pB;
 
   const DB_FLOOR = -60;  // dB minimum shown
@@ -657,15 +657,14 @@ function drawSpectrum() {
       let barH, valLabel;
       if (specDb) {
         const dbVal = Math.max(20 * Math.log10(Math.max(a, 1e-6)), DB_FLOOR);
-        barH     = Math.max((1 - dbVal / DB_FLOOR) * iH * 0.87, 1);
-        barH     = Math.max(barH, 1);
+        barH     = Math.max((1 - dbVal / DB_FLOOR) * iH, 1);
         valLabel = dbVal > DB_FLOOR + 1 ? dbVal.toFixed(1) + ' dB' : '≤' + DB_FLOOR + ' dB';
       } else {
         // Scale bars to the largest active amplitude
         let maxA = 0;
         for (let j = 0; j < N_HARM; j++) if (activeH[j]) maxA = Math.max(maxA, amps[j]);
         if (maxA === 0) maxA = 1;
-        barH     = (a / maxA) * iH * 0.87;
+        barH     = (a / maxA) * iH;
         const al = a < 0.01 ? a.toFixed(3) : a < 0.1 ? a.toFixed(3) : a.toFixed(2);
         valLabel = al;
       }
@@ -713,12 +712,12 @@ function drawSpectrum() {
   ctx.font      = "8px 'DM Mono', monospace";
   ctx.textAlign = 'right';
   if (specDb) {
-    ctx.fillText('0 dB',        pL - 3, pT + 8);
+    ctx.fillText('0 dB',        pL - 3, pT + 6);
     ctx.fillText('-20',         pL - 3, pT + iH * (20/60) + 4);
     ctx.fillText('-40',         pL - 3, pT + iH * (40/60) + 4);
     ctx.fillText('-60',         pL - 3, pT + iH + 4);
   } else {
-    ctx.fillText('1',   pL - 3, pT + 8);
+    ctx.fillText('1',   pL - 3, pT + 6);
     ctx.fillText('0.5', pL - 3, pT + iH * 0.5 + 4);
     ctx.fillText('0',   pL - 3, pT + iH + 4);
   }
