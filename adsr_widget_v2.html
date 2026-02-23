@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ADSR Envelope — Sound Synthesis</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg:      #0f1117;
+    --surface: #181c27;
+    --border:  #2a2f3f;
+    --text:    #e4e8f0;
+    --muted:   #7a8099;
+    --accent:  #f0c040;
+    --btn-bg:  #1e2435;
+    --ca: #f87171;
+    --cd: #fbbf24;
+    --cs: #34d399;
+    --cr: #818cf8;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 14px 40px;
+  }
+
+  h1 {
+    font-family: 'DM Mono', monospace;
+    font-size: 1.05rem;
+    font-weight: 400;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 3px;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    margin-bottom: 18px;
+  }
+
+  .shell {
+    width: 100%;
+    max-width: 820px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  /* ── PLAY BUTTON ── */
+  .play-btn {
+    width: 100%;
+    padding: 12px 16px;
+    border-radius: 8px;
+    border: none;
+    background: var(--accent);
+    color: #0f1117;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.78rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    text-transform: uppercase;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+    transition: background 0.15s, color 0.15s;
+  }
+  .play-btn.phase-a { background: var(--ca); color: #0f1117; }
+  .play-btn.phase-d { background: var(--cd); color: #0f1117; }
+  .play-btn.phase-s { background: var(--cs); color: #0f1117; }
+  .play-btn.phase-r { background: var(--cr); color: #fff; }
+
+  /* ── ENVELOPE PANEL ── */
+  .env-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px 12px;
+  }
+  .panel-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  #env-canvas { width: 100%; display: block; border-radius: 3px; }
+
+  .phase-labels {
+    display: flex;
+    margin-top: 5px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.06em;
+  }
+  .ph-label { text-align: center; }
+  .ph-a { color: var(--ca); }
+  .ph-d { color: var(--cd); }
+  .ph-s { color: var(--cs); }
+  .ph-r { color: var(--cr); }
+
+  /* ── SLIDERS ── */
+  .sliders-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 24px;
+  }
+  .slider-row { display: flex; flex-direction: column; gap: 5px; }
+  .slider-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .slider-name {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .slider-val {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.68rem;
+    color: var(--text);
+  }
+  .slider-hint {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.55rem;
+    color: var(--muted);
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid var(--bg);
+    transition: transform 0.1s;
+  }
+  input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+  input[type=range]::-moz-range-thumb {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid var(--bg);
+  }
+
+  #sl-attack  { background: linear-gradient(to right, var(--ca) 0%, var(--ca) var(--pct,50%), #2a2f3f var(--pct,50%)); }
+  #sl-attack::-webkit-slider-thumb  { background: var(--ca); }
+  #sl-attack::-moz-range-thumb      { background: var(--ca); }
+
+  #sl-decay   { background: linear-gradient(to right, var(--cd) 0%, var(--cd) var(--pct,50%), #2a2f3f var(--pct,50%)); }
+  #sl-decay::-webkit-slider-thumb   { background: var(--cd); }
+  #sl-decay::-moz-range-thumb       { background: var(--cd); }
+
+  #sl-sustain { background: linear-gradient(to right, var(--cs) 0%, var(--cs) var(--pct,50%), #2a2f3f var(--pct,50%)); }
+  #sl-sustain::-webkit-slider-thumb { background: var(--cs); }
+  #sl-sustain::-moz-range-thumb     { background: var(--cs); }
+
+  #sl-release { background: linear-gradient(to right, var(--cr) 0%, var(--cr) var(--pct,50%), #2a2f3f var(--pct,50%)); }
+  #sl-release::-webkit-slider-thumb { background: var(--cr); }
+  #sl-release::-moz-range-thumb     { background: var(--cr); }
+
+  /* ── TIMBRE PANEL ── */
+  .timbre-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 20px;
+  }
+  .ctrl-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 10px;
+  }
+  .tone-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .tone-btn {
+    background: var(--btn-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.14s, background 0.14s;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .tone-btn:hover { border-color: var(--accent2); }
+  .tone-btn.active {
+    border-color: var(--accent2);
+    background: rgba(79,195,247,0.08);
+  }
+  .tone-name {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--text);
+    letter-spacing: 0.04em;
+  }
+  .tone-btn.active .tone-name { color: var(--accent2); }
+  .tone-desc {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.56rem;
+    color: var(--muted);
+    letter-spacing: 0.02em;
+  }
+  @media (min-width: 700px) {
+    .tone-row { grid-template-columns: 1fr 1fr 1fr; }
+  }
+
+  .filter-sliders {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  @media (min-width: 700px) {
+    .filter-sliders {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px 20px;
+    }
+  }
+
+  #sl-fmin, #sl-fmax, #sl-fq {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+    background: linear-gradient(to right, var(--accent2) 0%, var(--accent2) var(--pct,15%), #2a2f3f var(--pct,15%));
+  }
+  #sl-fmin::-webkit-slider-thumb,
+  #sl-fmax::-webkit-slider-thumb,
+  #sl-fq::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--accent2);
+    cursor: pointer;
+    border: 2px solid var(--bg);
+  }
+  #sl-fmin::-moz-range-thumb,
+  #sl-fmax::-moz-range-thumb,
+  #sl-fq::-moz-range-thumb {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--accent2);
+    cursor: pointer;
+    border: 2px solid var(--bg);
+  }
+  .status-bar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.68rem;
+    color: var(--muted);
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+  }
+  .status-bar span { color: var(--text); }
+  .phase-pill {
+    padding: 2px 8px;
+    border-radius: 4px;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  /* ── DESKTOP ── */
+  @media (min-width: 700px) {
+    body { font-size: 13px; padding: 20px 24px 40px; }
+    h1   { font-size: 0.95rem; }
+    .subtitle { font-size: 0.72rem; margin-bottom: 14px; }
+    .shell { max-width: 860px; }
+    .sliders-panel { grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px 20px; }
+    .slider-name { font-size: 0.6rem; }
+    .slider-val  { font-size: 0.63rem; }
+  }
+</style>
+</head>
+<body>
+
+<h1>ADSR Envelope</h1>
+<p class="subtitle">A3 = 220 Hz &nbsp;·&nbsp; Shape the amplitude of a tone over time</p>
+
+<div class="shell">
+
+  <button class="play-btn" id="play-btn">▶ &nbsp;Press &amp; Hold</button>
+
+  <div class="env-panel">
+    <div class="panel-title">Amplitude envelope</div>
+    <canvas id="env-canvas" height="160"></canvas>
+    <div class="phase-labels" id="phase-labels">
+      <div class="ph-label ph-a" id="lbl-a">A</div>
+      <div class="ph-label ph-d" id="lbl-d">D</div>
+      <div class="ph-label ph-s" id="lbl-s">S</div>
+      <div class="ph-label ph-r" id="lbl-r">R</div>
+    </div>
+  </div>
+
+  <div class="sliders-panel">
+    <div class="slider-row">
+      <div class="slider-header">
+        <span class="slider-name ph-a">Attack</span>
+        <span class="slider-val" id="val-attack">50 ms</span>
+      </div>
+      <input type="range" id="sl-attack" min="1" max="1000" value="50" step="1">
+      <span class="slider-hint">1 ms – 1 s</span>
+    </div>
+    <div class="slider-row">
+      <div class="slider-header">
+        <span class="slider-name ph-d">Decay</span>
+        <span class="slider-val" id="val-decay">200 ms</span>
+      </div>
+      <input type="range" id="sl-decay" min="1" max="1000" value="200" step="1">
+      <span class="slider-hint">1 ms – 1 s</span>
+    </div>
+    <div class="slider-row">
+      <div class="slider-header">
+        <span class="slider-name ph-s">Sustain</span>
+        <span class="slider-val" id="val-sustain">70%</span>
+      </div>
+      <input type="range" id="sl-sustain" min="0" max="100" value="70" step="1">
+      <span class="slider-hint">0 – 100% peak</span>
+    </div>
+    <div class="slider-row">
+      <div class="slider-header">
+        <span class="slider-name ph-r">Release</span>
+        <span class="slider-val" id="val-release">400 ms</span>
+      </div>
+      <input type="range" id="sl-release" min="1" max="1000" value="400" step="1">
+      <span class="slider-hint">1 ms – 1 s</span>
+    </div>
+  </div>
+
+  <!-- TONE MODE -->
+  <div class="timbre-panel">
+    <span class="ctrl-title">Tone</span>
+    <div class="tone-row">
+      <button class="tone-btn active" data-mode="sine">
+        <span class="tone-name">Sine</span>
+        <span class="tone-desc">pure tone · amplitude envelope only</span>
+      </button>
+      <button class="tone-btn" data-mode="saw">
+        <span class="tone-name">Sawtooth</span>
+        <span class="tone-desc">rich tone · amplitude envelope only</span>
+      </button>
+      <button class="tone-btn" data-mode="sawfilter">
+        <span class="tone-name">Sawtooth + Brightness</span>
+        <span class="tone-desc">rich tone · amplitude &amp; filter envelope</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- FILTER TUNING (visible only in sawfilter mode) -->
+  <div class="timbre-panel" id="filter-panel" style="display:none">
+    <span class="ctrl-title">Brightness settings</span>
+    <div class="filter-sliders">
+      <div class="slider-row">
+        <div class="slider-header">
+          <span class="slider-name" style="color:var(--accent2)">Floor</span>
+          <span class="slider-val" id="val-fmin">300 Hz</span>
+        </div>
+        <input type="range" id="sl-fmin" min="100" max="2000" value="300" step="10"
+               style="-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:3px;background:#4fc3f7;cursor:pointer;display:block">
+        <span class="slider-hint">cutoff at silence &amp; release end</span>
+      </div>
+      <div class="slider-row">
+        <div class="slider-header">
+          <span class="slider-name" style="color:var(--accent2)">Ceiling</span>
+          <span class="slider-val" id="val-fmax">8000 Hz</span>
+        </div>
+        <input type="range" id="sl-fmax" min="1000" max="18000" value="8000" step="100"
+               style="-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:3px;background:#4fc3f7;cursor:pointer;display:block">
+        <span class="slider-hint">cutoff at attack peak</span>
+      </div>
+      <div class="slider-row">
+        <div class="slider-header">
+          <span class="slider-name" style="color:var(--accent2)">Resonance Q</span>
+          <span class="slider-val" id="val-fq">0.8</span>
+        </div>
+        <input type="range" id="sl-fq" min="0.1" max="20" value="0.8" step="0.1"
+               style="-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:3px;background:#4fc3f7;cursor:pointer;display:block">
+        <span class="slider-hint">peak at cutoff frequency (1 = flat)</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="status-bar">
+    <div>Phase: <span id="st-phase" class="phase-pill">—</span></div>
+    <div>A+D+R: <span id="st-total">—</span></div>
+  </div>
+
+</div>
+
+<script>
+// ── Constants ──────────────────────────────────────────────────────────────────
+const F0 = 220;
+
+const PHASE_COLS = {
+  idle: null,
+  A: '#f87171',
+  D: '#fbbf24',
+  S: '#34d399',
+  R: '#818cf8',
+};
+
+// ── State machine ──────────────────────────────────────────────────────────────
+// Exactly one of: 'idle' | 'A' | 'D' | 'S' | 'R'
+// Transitions:
+//   idle  → A   : noteOn
+//   A     → D   : (automatic, timed)
+//   D     → S   : (automatic, timed)
+//   S     → R   : noteOff
+//   R     → idle: (automatic, on osc.onended)
+// noteOn while in A/D/S restarts from idle first.
+// noteOn while in R is ignored.
+
+let phase = 'idle';
+
+// Params locked at noteOn — slider changes during a note don't affect
+// the current cycle. They take effect on the next noteOn.
+let p = { A: 0.05, D: 0.20, S: 0.70, R: 0.40 };
+
+// audioCtx.currentTime recorded at each phase boundary
+// Used by the playhead to compute position without depending on
+// any value that might be mutated mid-flight.
+let tNoteOn    = 0;   // time of noteOn
+let tReleaseOn = 0;   // time of noteOff (release start)
+
+let audioCtx = null;
+let gainNode = null;
+let filterNode = null;
+let oscNode  = null;
+let rafId    = null;
+
+// ── Tone mode ──────────────────────────────────────────────────────────────────
+// 'sine'      — sine wave, amplitude envelope only
+// 'saw'       — sawtooth wave, amplitude envelope only
+// 'sawfilter' — sawtooth wave, amplitude + filter cutoff envelope
+let toneMode = 'sine';
+
+const FILTER_MIN_DEFAULT = 300;
+const FILTER_MAX_DEFAULT = 8000;
+
+function filterMin()  { return parseFloat(document.getElementById('sl-fmin')?.value ?? FILTER_MIN_DEFAULT); }
+function filterMax()  { return parseFloat(document.getElementById('sl-fmax')?.value ?? FILTER_MAX_DEFAULT); }
+function filterQ()    { return parseFloat(document.getElementById('sl-fq')?.value   ?? 0.8); }
+
+function cutoffForAmp(amp) {
+  return filterMin() + amp * (filterMax() - filterMin());
+}
+
+// ── Audio setup ────────────────────────────────────────────────────────────────
+function getCtx() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    gainNode = audioCtx.createGain();
+    gainNode.gain.value = 0;
+    gainNode.connect(audioCtx.destination);
+    filterNode = audioCtx.createBiquadFilter();
+    filterNode.type = 'lowpass';
+    filterNode.Q.value = filterQ();
+    filterNode.frequency.value = filterMax();
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+// ── Note on ────────────────────────────────────────────────────────────────────
+function noteOn() {
+  if (phase === 'R') return;
+  if (phase !== 'idle') forceIdle();
+
+  p = readSliders();
+
+  const ctx = getCtx();
+  tNoteOn   = ctx.currentTime;
+
+  // Build audio chain based on toneMode
+  oscNode = ctx.createOscillator();
+  oscNode.frequency.value = F0;
+
+  if (toneMode === 'sine') {
+    oscNode.type = 'sine';
+    try { filterNode.disconnect(); } catch(e) {}
+    oscNode.connect(gainNode);
+  } else if (toneMode === 'saw') {
+    oscNode.type = 'sawtooth';
+    try { filterNode.disconnect(); } catch(e) {}
+    oscNode.connect(gainNode);
+  } else if (toneMode === 'sawfilter') {
+    oscNode.type = 'sawtooth';
+    try { filterNode.disconnect(); } catch(e) {}
+    filterNode.connect(gainNode);
+    oscNode.connect(filterNode);
+  }
+  oscNode.start(tNoteOn);
+
+  // Schedule gain envelope: 0 → 1 (attack) → S (decay) → hold
+  const g = gainNode.gain;
+  g.cancelScheduledValues(tNoteOn);
+  g.setValueAtTime(0, tNoteOn);
+  g.linearRampToValueAtTime(1.0, tNoteOn + p.A);
+  g.linearRampToValueAtTime(Math.max(p.S, 0.0001), tNoteOn + p.A + p.D);
+
+  // Schedule filter cutoff envelope (sawfilter only)
+  if (toneMode === 'sawfilter') {
+    const f = filterNode.frequency;
+    filterNode.Q.value = filterQ();
+    f.cancelScheduledValues(tNoteOn);
+    f.setValueAtTime(cutoffForAmp(0),   tNoteOn);
+    f.linearRampToValueAtTime(cutoffForAmp(1.0),            tNoteOn + p.A);
+    f.linearRampToValueAtTime(cutoffForAmp(Math.max(p.S, 0)), tNoteOn + p.A + p.D);
+  }
+
+  setPhase('A');
+  startRAF();
+}
+
+// ── Note off ───────────────────────────────────────────────────────────────────
+function noteOff() {
+  if (phase === 'idle' || phase === 'R') return;
+
+  const ctx = getCtx();
+  const now = ctx.currentTime;
+
+  // Minimum cycle: if released before A+D has completed, defer the release
+  // until A+D finishes. This prevents a tap from jumping straight to R.
+  const adEnd = tNoteOn + p.A + p.D;
+  if (now < adEnd) {
+    const delay = (adEnd - now) * 1000; // ms
+    setTimeout(() => {
+      // Only trigger if we're still in A or D (not already manually released)
+      if (phase === 'A' || phase === 'D') releaseNow();
+    }, delay);
+    return;
+  }
+
+  releaseNow();
+}
+
+function releaseNow() {
+  if (phase === 'idle' || phase === 'R') return;
+
+  const ctx  = getCtx();
+  tReleaseOn = ctx.currentTime;
+
+  // Cancel scheduled automation and ramp gain to 0 over R seconds
+  const g = gainNode.gain;
+  g.cancelScheduledValues(tReleaseOn);
+  g.setValueAtTime(g.value, tReleaseOn);
+  g.linearRampToValueAtTime(0, tReleaseOn + p.R);
+
+  // Ramp filter cutoff down to min over R (sawfilter mode only)
+  if (toneMode === 'sawfilter') {
+    const f = filterNode.frequency;
+    f.cancelScheduledValues(tReleaseOn);
+    f.setValueAtTime(f.value, tReleaseOn);
+    f.linearRampToValueAtTime(filterMin(), tReleaseOn + p.R);
+  }
+
+  oscNode.stop(tReleaseOn + p.R + 0.01);
+  oscNode.onended = () => {
+    oscNode = null;
+    forceIdle();
+  };
+
+  setPhase('R');
+}
+
+// ── Force idle (for restart or cleanup) ───────────────────────────────────────
+function forceIdle() {
+  if (oscNode) {
+    oscNode.onended = null;
+    try { oscNode.stop(); } catch(e) {}
+    oscNode = null;
+  }
+  try { filterNode.disconnect(); } catch(e) {}
+  if (gainNode) {
+    const ctx = getCtx();
+    gainNode.gain.cancelScheduledValues(ctx.currentTime);
+    gainNode.gain.setValueAtTime(0, ctx.currentTime);
+  }
+  cancelAnimationFrame(rafId);
+  rafId = null;
+  setPhase('idle');
+  drawEnvelope(0);
+}
+
+// ── RAF loop ───────────────────────────────────────────────────────────────────
+// Computes playhead position purely from recorded timestamps and locked params.
+// Does NOT read pendingParams — only p (locked at noteOn).
+function startRAF() {
+  cancelAnimationFrame(rafId);
+  rafId = requestAnimationFrame(tick);
+}
+
+function tick() {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+
+  // Determine playhead position (0..1 across the visual envelope)
+  // Visual layout: A occupies 0–0.25, D 0.25–0.5, S 0.5–0.75, R 0.75–1.0
+  let pos = 0;
+
+  if (phase === 'A') {
+    const elapsed = now - tNoteOn;
+    if (elapsed >= p.A) {
+      setPhase('D');
+    } else {
+      pos = (elapsed / p.A) * 0.25;
+    }
+  }
+
+  if (phase === 'D') {
+    const elapsed = now - tNoteOn - p.A;
+    if (elapsed >= p.D) {
+      setPhase('S');
+    } else {
+      pos = 0.25 + (elapsed / p.D) * 0.25;
+    }
+  }
+
+  if (phase === 'S') {
+    // Park playhead at the S/R boundary (0.75) until noteOff
+    pos = 0.625; // midpoint of S region
+  }
+
+  if (phase === 'R') {
+    const elapsed = now - tReleaseOn;
+    const frac    = Math.min(elapsed / p.R, 1.0);
+    pos = 0.75 + frac * 0.25;
+    // R phase ends via oscNode.onended → forceIdle
+    // but if osc ended before RAF catches up, stop here
+    if (frac >= 1.0) {
+      // onended should have already fired; if not, clean up
+      forceIdle();
+      return;
+    }
+  }
+
+  if (phase === 'idle') return;
+
+  drawEnvelope(pos);
+  rafId = requestAnimationFrame(tick);
+}
+
+// ── Read sliders ───────────────────────────────────────────────────────────────
+function readSliders() {
+  return {
+    A: parseInt(document.getElementById('sl-attack').value)  / 1000,
+    D: parseInt(document.getElementById('sl-decay').value)   / 1000,
+    S: parseInt(document.getElementById('sl-sustain').value) / 100,
+    R: parseInt(document.getElementById('sl-release').value) / 1000,
+  };
+}
+
+// ── Slider display ─────────────────────────────────────────────────────────────
+function formatMs(s) {
+  return s < 1 ? Math.round(s * 1000) + ' ms' : s.toFixed(2) + ' s';
+}
+
+function updateSliderDisplay() {
+  const a = parseInt(document.getElementById('sl-attack').value);
+  const d = parseInt(document.getElementById('sl-decay').value);
+  const s = parseInt(document.getElementById('sl-sustain').value);
+  const r = parseInt(document.getElementById('sl-release').value);
+
+  document.getElementById('val-attack').textContent  = formatMs(a / 1000);
+  document.getElementById('val-decay').textContent   = formatMs(d / 1000);
+  document.getElementById('val-sustain').textContent = s + '%';
+  document.getElementById('val-release').textContent = formatMs(r / 1000);
+
+  function setPct(id, val, min, max) {
+    const pct = ((val - min) / (max - min) * 100).toFixed(1) + '%';
+    document.getElementById(id).style.setProperty('--pct', pct);
+  }
+  setPct('sl-attack',  a, 1, 1000);
+  setPct('sl-decay',   d, 1, 1000);
+  setPct('sl-sustain', s, 0,  100);
+  setPct('sl-release', r, 1, 1000);
+
+  // Update total display using current slider values (not locked params)
+  const pp = readSliders();
+  document.getElementById('st-total').textContent =
+    formatMs(pp.A) + ' + ' + formatMs(pp.D) + ' + ' + formatMs(pp.R);
+
+  // Redraw envelope shape (but not playhead — that's RAF's job)
+  if (phase === 'idle') drawEnvelope(0);
+}
+
+// ── Draw envelope ──────────────────────────────────────────────────────────────
+// pos: playhead position 0..1 across the visual canvas width.
+//      Pass 0 to draw without playhead.
+function drawEnvelope(pos) {
+  const canvas = document.getElementById('env-canvas');
+  const dpr    = window.devicePixelRatio || 1;
+  const rect   = canvas.getBoundingClientRect();
+  const needW  = Math.round(rect.width  * dpr);
+  const needH  = Math.round(rect.height * dpr);
+  if (canvas.width !== needW || canvas.height !== needH) {
+    canvas.width  = needW;
+    canvas.height = needH;
+    canvas.getContext('2d').scale(dpr, dpr);
+  }
+  const W = canvas.width / dpr;
+  const H = canvas.height / dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  // Use pending slider values for the visual shape so it updates live.
+  // The playhead uses locked params (p) for its position calculation,
+  // but the shape under it reflects current sliders.
+  const pp   = readSliders();
+  const VDUR = 0.5;  // fixed visual sustain duration for display
+  const total = pp.A + pp.D + VDUR + pp.R;
+
+  const pL = 14, pR = 14, pT = 10, pB = 20;
+  const iW = W - pL - pR;
+  const iH = H - pT - pB;
+
+  function tx(t) { return pL + (t / total) * iW; }
+  function ay(a) { return pT + (1 - a) * iH; }
+
+  const sl = Math.max(pp.S, 0);
+  const t0 = 0, t1 = pp.A, t2 = pp.A + pp.D, t3 = t2 + VDUR, t4 = total;
+  const pts = [[t0,0],[t1,1],[t2,sl],[t3,sl],[t4,0]];
+
+  // Filled regions
+  const regions = [
+    [0,1, PHASE_COLS.A], [1,2, PHASE_COLS.D],
+    [2,3, PHASE_COLS.S], [3,4, PHASE_COLS.R],
+  ];
+  regions.forEach(([from, to, col]) => {
+    ctx.beginPath();
+    ctx.moveTo(tx(pts[from][0]), ay(0));
+    ctx.lineTo(tx(pts[from][0]), ay(pts[from][1]));
+    ctx.lineTo(tx(pts[to][0]),   ay(pts[to][1]));
+    ctx.lineTo(tx(pts[to][0]),   ay(0));
+    ctx.closePath();
+    ctx.fillStyle = col + '22';
+    ctx.fill();
+  });
+
+  // Envelope line with gradient stroke
+  ctx.beginPath();
+  pts.forEach(([t, a], i) => {
+    i === 0 ? ctx.moveTo(tx(t), ay(a)) : ctx.lineTo(tx(t), ay(a));
+  });
+  const gr = ctx.createLinearGradient(pL, 0, pL + iW, 0);
+  gr.addColorStop(0,        PHASE_COLS.A);
+  gr.addColorStop(t1/total, PHASE_COLS.A);
+  gr.addColorStop(t1/total, PHASE_COLS.D);
+  gr.addColorStop(t2/total, PHASE_COLS.D);
+  gr.addColorStop(t2/total, PHASE_COLS.S);
+  gr.addColorStop(t3/total, PHASE_COLS.S);
+  gr.addColorStop(t3/total, PHASE_COLS.R);
+  gr.addColorStop(1,        PHASE_COLS.R);
+  ctx.strokeStyle = gr;
+  ctx.lineWidth   = 2.2;
+  ctx.setLineDash([]);
+  ctx.stroke();
+
+  // Transition dots
+  [[t1,1, PHASE_COLS.D],[t2,sl, PHASE_COLS.S],[t3,sl, PHASE_COLS.R]].forEach(([t,a,col]) => {
+    ctx.beginPath();
+    ctx.arc(tx(t), ay(a), 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = col;
+    ctx.fill();
+  });
+
+  // Sustain level guide
+  if (sl > 0.01) {
+    ctx.setLineDash([3, 4]);
+    ctx.strokeStyle = PHASE_COLS.S + '55';
+    ctx.lineWidth   = 1;
+    ctx.beginPath();
+    ctx.moveTo(pL, ay(sl)); ctx.lineTo(pL + iW, ay(sl));
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle  = PHASE_COLS.S + 'aa';
+    ctx.font       = "8px 'DM Mono', monospace";
+    ctx.textAlign  = 'right';
+    ctx.fillText(Math.round(sl * 100) + '%', pL - 2, ay(sl) + 3);
+  }
+
+  // Baseline
+  ctx.setLineDash([]);
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+  ctx.lineWidth   = 1;
+  ctx.beginPath();
+  ctx.moveTo(pL, ay(0)); ctx.lineTo(pL + iW, ay(0));
+  ctx.stroke();
+
+  // ── Playhead ──
+  if (pos > 0) {
+    const px = pL + pos * iW;
+    ctx.strokeStyle = 'rgba(255,255,255,0.72)';
+    ctx.lineWidth   = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(px, pT); ctx.lineTo(px, pT + iH);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.beginPath();
+    ctx.moveTo(px - 4, pT); ctx.lineTo(px + 4, pT); ctx.lineTo(px, pT + 8);
+    ctx.closePath(); ctx.fill();
+  }
+
+  // Phase label widths
+  document.getElementById('lbl-a').style.width = (t1/total*100).toFixed(1) + '%';
+  document.getElementById('lbl-d').style.width = ((t2-t1)/total*100).toFixed(1) + '%';
+  document.getElementById('lbl-s').style.width = (VDUR/total*100).toFixed(1) + '%';
+  document.getElementById('lbl-r').style.width = (pp.R/total*100).toFixed(1) + '%';
+}
+
+// ── Phase display ──────────────────────────────────────────────────────────────
+function setPhase(ph) {
+  phase = ph;
+  const el   = document.getElementById('st-phase');
+  const btn  = document.getElementById('play-btn');
+  const map  = { idle:'—', A:'Attack', D:'Decay', S:'Sustain', R:'Release' };
+  const col  = PHASE_COLS[ph];
+
+  el.textContent      = map[ph];
+  el.style.background = col ? col + '33' : 'transparent';
+  el.style.color      = col || 'var(--text)';
+
+  btn.className = 'play-btn' + (ph !== 'idle' ? ' phase-' + ph.toLowerCase() : '');
+  if (ph === 'idle') {
+    btn.innerHTML = '▶ &nbsp;Press &amp; Hold';
+  } else if (ph === 'A') {
+    btn.innerHTML = '▲ &nbsp;Attack';
+  } else if (ph === 'D') {
+    btn.innerHTML = '▼ &nbsp;Decay';
+  } else if (ph === 'S') {
+    btn.innerHTML = '● &nbsp;Sustaining — release to end note';
+  } else if (ph === 'R') {
+    btn.innerHTML = '◌ &nbsp;Releasing…';
+  }
+}
+
+// ── Event wiring ───────────────────────────────────────────────────────────────
+// Use addEventListener only — no inline handlers in HTML.
+// mouseup on document catches the case where the pointer drifts off the button.
+
+const btn = document.getElementById('play-btn');
+
+btn.addEventListener('mousedown', e => { e.preventDefault(); noteOn(); });
+btn.addEventListener('touchstart', e => { e.preventDefault(); noteOn(); }, { passive: false });
+
+document.addEventListener('mouseup',  () => { if (phase !== 'idle') noteOff(); });
+document.addEventListener('touchend', () => { if (phase !== 'idle') noteOff(); });
+
+btn.addEventListener('contextmenu', e => e.preventDefault());
+
+// ── Tone buttons ───────────────────────────────────────────────────────────────
+document.querySelectorAll('.tone-btn').forEach(toneBtn => {
+  toneBtn.addEventListener('click', () => {
+    if (phase !== 'idle') forceIdle();
+    toneMode = toneBtn.dataset.mode;
+    document.querySelectorAll('.tone-btn').forEach(b => b.classList.remove('active'));
+    toneBtn.classList.add('active');
+    document.getElementById('filter-panel').style.display =
+      toneMode === 'sawfilter' ? 'block' : 'none';
+  });
+});
+
+// ── Filter tuning sliders ──────────────────────────────────────────────────────
+function updateFilterDisplay() {
+  const fmin = parseFloat(document.getElementById('sl-fmin').value);
+  const fmax = parseFloat(document.getElementById('sl-fmax').value);
+  const fq   = parseFloat(document.getElementById('sl-fq').value);
+
+  document.getElementById('val-fmin').textContent = fmin >= 1000
+    ? (fmin/1000).toFixed(1) + ' kHz' : Math.round(fmin) + ' Hz';
+  document.getElementById('val-fmax').textContent = fmax >= 1000
+    ? (fmax/1000).toFixed(1) + ' kHz' : Math.round(fmax) + ' Hz';
+  document.getElementById('val-fq').textContent = fq.toFixed(1);
+
+  function setPct(id, val, min, max) {
+    const pct = ((val - min) / (max - min) * 100).toFixed(1) + '%';
+    document.getElementById(id).style.setProperty('--pct', pct);
+  }
+  setPct('sl-fmin', fmin, 100,   2000);
+  setPct('sl-fmax', fmax, 1000, 18000);
+  setPct('sl-fq',   fq,   0.1,    20);
+}
+
+['sl-fmin','sl-fmax','sl-fq'].forEach(id => {
+  document.getElementById(id).addEventListener('input', updateFilterDisplay);
+});
+
+['sl-attack','sl-decay','sl-sustain','sl-release'].forEach(id => {
+  document.getElementById(id).addEventListener('input', updateSliderDisplay);
+});
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+updateSliderDisplay();
+updateFilterDisplay();
+requestAnimationFrame(() => drawEnvelope(0));
+
+let rzTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(rzTimer);
+  rzTimer = setTimeout(() => drawEnvelope(0), 80);
+});
+</script>
+</body>
+</html>

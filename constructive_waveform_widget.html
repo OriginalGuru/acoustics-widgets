@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Constructive Waveform — Sound Spectra</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg:      #0f1117;
+    --surface: #181c27;
+    --border:  #2a2f3f;
+    --text:    #e4e8f0;
+    --muted:   #7a8099;
+    --accent:  #f0c040;
+    --accent2: #4fc3f7;
+    --btn-bg:  #1e2435;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 14px 40px;
+  }
+
+  h1 {
+    font-family: 'DM Mono', monospace;
+    font-size: 1.05rem;
+    font-weight: 400;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 3px;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    margin-bottom: 18px;
+    text-align: center;
+  }
+
+  /* ── MAIN LAYOUT ── */
+  .shell {
+    width: 100%;
+    max-width: 1140px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  /* ── SLIDER GRID ── */
+  .slider-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 14px 14px;
+  }
+  .panel-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .harmonic-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px 6px;
+  }
+  @media (min-width: 700px) {
+    .harmonic-grid { grid-template-columns: repeat(12, 1fr); gap: 8px 4px; }
+  }
+
+  .h-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+  }
+  .h-n-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.04em;
+  }
+  .h-val {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.56rem;
+    color: var(--muted);
+    min-width: 28px;
+    text-align: center;
+  }
+
+  /* Vertical range slider */
+  .v-slider-wrap {
+    position: relative;
+    height: 110px;
+    width: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  /* Center tick line */
+  .v-slider-wrap::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 0; bottom: 0;
+    width: 1px;
+    background: rgba(255,255,255,0.06);
+    pointer-events: none;
+  }
+
+  input[type=range].vert {
+    -webkit-appearance: slider-vertical;
+    appearance: slider-vertical;
+    writing-mode: vertical-lr;
+    direction: rtl;
+    width: 6px;
+    height: 100px;
+    cursor: pointer;
+    outline: none;
+    border-radius: 3px;
+    padding: 0;
+  }
+  input[type=range].vert::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid var(--bg);
+    transition: transform 0.1s;
+  }
+  input[type=range].vert::-webkit-slider-thumb:hover { transform: scale(1.2); }
+  input[type=range].vert::-moz-range-thumb {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid var(--bg);
+  }
+
+  .zero-btn {
+    background: var(--btn-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.55rem;
+    padding: 3px 5px;
+    cursor: pointer;
+    transition: border-color 0.14s, color 0.14s;
+    letter-spacing: 0.03em;
+  }
+  .zero-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── CANVAS PANELS ── */
+  .vis-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  @media (min-width: 700px) {
+    .vis-row { grid-template-columns: 1fr 1fr; }
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 18px 10px;
+    display: flex;
+    flex-direction: column;
+  }
+  canvas { width: 100%; border-radius: 3px; display: block; }
+
+  .play-btn {
+    padding: 11px 28px;
+    border-radius: 8px;
+    border: none;
+    background: var(--accent);
+    color: #0f1117;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.78rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: opacity 0.14s, transform 0.1s;
+    flex-shrink: 0;
+  }
+  .play-btn:hover  { opacity: 0.86; }
+  .play-btn:active { transform: scale(0.97); }
+  .play-btn.playing { background: #ef4444; color: #fff; }
+
+  .reset-btn {
+    padding: 11px 18px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--btn-bg);
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: border-color 0.14s, color 0.14s;
+  }
+  .reset-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .db-toggle {
+    padding: 5px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--btn-bg);
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: all 0.14s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .db-toggle:hover { border-color: var(--accent2); color: var(--accent2); }
+  .db-toggle.active {
+    border-color: var(--accent2);
+    color: var(--accent2);
+    background: rgba(79,195,247,0.08);
+  }
+
+  /* ── TOP BAR ── */
+  .top-bar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .status-bar {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 14px;
+    font-size: 0.68rem;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.04em;
+    display: flex; gap: 16px; flex-wrap: wrap;
+  }
+  .status-bar span { color: var(--text); }
+
+  /* panel header row: title + toggle side by side */
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    gap: 8px;
+  }
+  .panel-header .panel-title { margin-bottom: 0; }
+</style>
+</head>
+<body>
+
+<h1>Constructive Waveform</h1>
+<p class="subtitle">A3 = 220 Hz &nbsp;·&nbsp; Set each harmonic's amplitude (–1 to +1) and discover wave shapes</p>
+
+<div class="shell">
+
+  <!-- TOP BAR: Play + status -->
+  <div class="top-bar">
+    <button class="play-btn" id="play-btn">▶ &nbsp;Play</button>
+    <div class="status-bar">
+      <div>Active harmonics: <span id="st-active">—</span></div>
+      <div>Peak amplitude: <span id="st-peak">—</span></div>
+    </div>
+  </div>
+
+  <!-- HARMONIC SLIDERS -->
+  <div class="slider-panel">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+      <div class="panel-title" style="margin-bottom:0">Harmonic amplitudes (drag up = +, down = –)</div>
+      <button class="reset-btn" id="reset-btn">Reset all to 0</button>
+    </div>
+    <div class="harmonic-grid" id="harmonic-grid"></div>
+  </div>
+
+  <!-- WAVEFORM + SPECTRUM -->
+  <div class="vis-row">
+    <div class="panel">
+      <div class="panel-title">Waveform &nbsp;·&nbsp; time domain</div>
+      <canvas id="waveform-canvas" height="200"></canvas>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title" id="spectrum-title">Spectrum &nbsp;·&nbsp; frequency domain &nbsp;·&nbsp; linear</div>
+        <button class="db-toggle" id="db-toggle">Linear</button>
+      </div>
+      <canvas id="spectrum-canvas" height="200"></canvas>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── Constants ──────────────────────────────────────────────────────────────────
+const F0          = 220;
+const N_HARM      = 12;
+const SAMPLE_RATE = 44100;
+const PLAY_DUR    = 2.0;
+const SHOW_SEC    = 3.5 / F0;  // ~3.5 periods, same as Fourier widget
+
+const H_COLORS = [
+  '#f87171','#fb923c','#fbbf24','#a3e635',
+  '#34d399','#22d3ee','#60a5fa','#818cf8',
+  '#c084fc','#f472b6','#fb7185','#e2e8f0'
+];
+
+// ── State ──────────────────────────────────────────────────────────────────────
+// amplitudes[i] ∈ [-1, +1], default 0
+let amplitudes = new Array(N_HARM).fill(0);
+
+let audioCtx   = null;
+let toneSource = null;
+let isPlaying  = false;
+let specDb     = false;  // false = linear, true = dB
+
+// ── Build slider UI ────────────────────────────────────────────────────────────
+function buildSliders() {
+  const grid = document.getElementById('harmonic-grid');
+  grid.innerHTML = '';
+  for (let i = 0; i < N_HARM; i++) {
+    const n   = i + 1;
+    const col = H_COLORS[i];
+    const col_alpha = col + '44';
+
+    const col_hex = col;
+    const col_track = col + '55';
+
+    const col_el = document.createElement('div');
+    col_el.className = 'h-col';
+    col_el.innerHTML = `
+      <span class="h-n-label" style="color:${col}">n=${n}</span>
+      <div class="v-slider-wrap">
+        <input type="range" class="vert" id="sl-${i}"
+          min="-100" max="100" value="0" step="1"
+          style="background:${col_track};"
+          data-idx="${i}">
+      </div>
+      <span class="h-val" id="val-${i}">0.00</span>
+      <button class="zero-btn" data-idx="${i}">zero</button>`;
+    grid.appendChild(col_el);
+
+    // Style slider track per color
+    const slStyle = document.createElement('style');
+    slStyle.textContent = `
+      #sl-${i}::-webkit-slider-thumb { background: ${col}; }
+      #sl-${i}::-moz-range-thumb     { background: ${col}; }
+    `;
+    document.head.appendChild(slStyle);
+  }
+
+  // Events: sliders
+  document.querySelectorAll('input[type=range].vert').forEach(sl => {
+    sl.addEventListener('input', e => {
+      const idx = +e.target.dataset.idx;
+      amplitudes[idx] = parseInt(e.target.value) / 100;
+      document.getElementById(`val-${idx}`).textContent = amplitudes[idx].toFixed(2);
+      draw(); updateStatus();
+    });
+  });
+
+  // Events: zero buttons
+  document.querySelectorAll('.zero-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const idx = +e.target.dataset.idx;
+      amplitudes[idx] = 0;
+      document.getElementById(`sl-${idx}`).value = 0;
+      document.getElementById(`val-${idx}`).textContent = '0.00';
+      draw(); updateStatus();
+    });
+  });
+}
+
+// ── Canvas resize helper ───────────────────────────────────────────────────────
+function resizeCanvas(canvas) {
+  const dpr  = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  const needW = Math.round(rect.width  * dpr);
+  const needH = Math.round(rect.height * dpr);
+  if (canvas.width !== needW || canvas.height !== needH) {
+    canvas.width  = needW;
+    canvas.height = needH;
+    canvas.getContext('2d').scale(dpr, dpr);
+  }
+}
+
+// ── Draw waveform ──────────────────────────────────────────────────────────────
+function drawWaveform() {
+  const canvas = document.getElementById('waveform-canvas');
+  resizeCanvas(canvas);
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.width / dpr, H = canvas.height / dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  // Zero line
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 1; ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
+
+  // Period ticks
+  ctx.setLineDash([3, 5]);
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  for (let p = 1; p < 4; p++) {
+    const x = (p / 3.5) * W;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // Collect active harmonics
+  const active = [];
+  for (let i = 0; i < N_HARM; i++) {
+    if (amplitudes[i] !== 0) active.push(i);
+  }
+
+  const nPts = 900;
+  const tMax = SHOW_SEC;
+
+  // Individual component lanes (same layout as Fourier widget)
+  if (active.length > 0) {
+    const laneZoneH = H * 0.42;
+    const laneH     = laneZoneH / active.length;
+
+    active.forEach((idx, rank) => {
+      const n   = idx + 1;
+      const col = H_COLORS[idx];
+      const cy  = H * 0.78 - rank * laneH;
+      const amp = Math.min(laneH * 0.44, H * 0.055);
+
+      ctx.strokeStyle = col;
+      ctx.globalAlpha = 0.30;
+      ctx.lineWidth   = 1.1;
+      ctx.beginPath();
+      for (let xi = 0; xi < nPts; xi++) {
+        const t = (xi / (nPts - 1)) * tMax;
+        // sign of amplitude encoded in direction of sine
+        const y = cy - amp * Math.sign(amplitudes[idx]) * Math.sin(2 * Math.PI * n * F0 * t);
+        xi === 0 ? ctx.moveTo(0, y) : ctx.lineTo((xi / (nPts - 1)) * W, y);
+      }
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    });
+  }
+
+  // Sum waveform
+  // Find normalisation: peak of actual sum (or 1 if silent)
+  let peakAbs = 0;
+  if (active.length > 0) {
+    const nCheck = 400;
+    for (let xi = 0; xi < nCheck; xi++) {
+      const t = (xi / (nCheck - 1)) * tMax;
+      let v = 0;
+      for (let i = 0; i < N_HARM; i++) v += amplitudes[i] * Math.sin(2 * Math.PI * (i+1) * F0 * t);
+      if (Math.abs(v) > peakAbs) peakAbs = Math.abs(v);
+    }
+  }
+  if (peakAbs < 1e-6) peakAbs = 1;
+
+  ctx.strokeStyle = '#f0c040';
+  ctx.lineWidth   = 2.5;
+  ctx.beginPath();
+  const drawn = active.length > 0;
+  for (let xi = 0; xi < nPts; xi++) {
+    const t = (xi / (nPts - 1)) * tMax;
+    let v = 0;
+    for (let i = 0; i < N_HARM; i++) v += amplitudes[i] * Math.sin(2 * Math.PI * (i+1) * F0 * t);
+    const y = H/2 - (H * 0.40) * (v / peakAbs);
+    xi === 0 ? ctx.moveTo(0, y) : ctx.lineTo((xi / (nPts - 1)) * W, y);
+  }
+  if (drawn) ctx.stroke();
+
+  // Axis labels
+  ctx.fillStyle = 'rgba(122,128,153,0.65)';
+  ctx.font      = "9px 'DM Mono', monospace";
+  ctx.fillText('0', 4, H - 3);
+  ctx.fillText(`${(tMax * 1000).toFixed(1)} ms`, W - 44, H - 3);
+}
+
+// ── Draw spectrum ──────────────────────────────────────────────────────────────
+// Bars always show |a| (always positive). Sign shown as +/− label above bar.
+function drawSpectrum() {
+  const canvas = document.getElementById('spectrum-canvas');
+  resizeCanvas(canvas);
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.width / dpr, H = canvas.height / dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  const pL=38, pR=10, pT=14, pB=38;
+  const iW = W-pL-pR, iH = H-pT-pB;
+
+  const DB_FLOOR = -60;
+
+  // Axes
+  ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(pL, pT); ctx.lineTo(pL, pT+iH); ctx.lineTo(pL+iW, pT+iH);
+  ctx.stroke();
+
+  // Grid lines
+  ctx.setLineDash([2, 4]);
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  if (specDb) {
+    for (const dbVal of [-20, -40, -60]) {
+      const y = pT + iH * (dbVal / DB_FLOOR);
+      ctx.beginPath(); ctx.moveTo(pL, y); ctx.lineTo(pL+iW, y); ctx.stroke();
+    }
+  } else {
+    for (let g = 0.25; g < 1; g += 0.25) {
+      const y = pT + iH * (1 - g);
+      ctx.beginPath(); ctx.moveTo(pL, y); ctx.lineTo(pL+iW, y); ctx.stroke();
+    }
+  }
+  ctx.setLineDash([]);
+
+  // Max |a| for linear scaling
+  let maxA = 0;
+  for (let i = 0; i < N_HARM; i++) maxA = Math.max(maxA, Math.abs(amplitudes[i]));
+  if (maxA < 1e-6) maxA = 1;
+
+  const slotW = iW / N_HARM;
+
+  for (let i = 0; i < N_HARM; i++) {
+    const n   = i + 1;
+    const col = H_COLORS[i];
+    const a   = amplitudes[i];
+    const absA = Math.abs(a);
+    const x   = pL + i * slotW + slotW * 0.18;
+    const bw  = slotW * 0.64;
+
+    if (absA > 1e-4) {
+      let barH, valLabel;
+      if (specDb) {
+        const dbVal = Math.max(20 * Math.log10(absA), DB_FLOOR);
+        barH     = Math.max((1 - dbVal / DB_FLOOR) * iH * 0.87, 1);
+        valLabel = dbVal > DB_FLOOR + 1 ? dbVal.toFixed(1) + ' dB' : '≤−60 dB';
+      } else {
+        barH     = (absA / maxA) * iH * 0.87;
+        valLabel = absA < 0.1 ? absA.toFixed(3) : absA.toFixed(2);
+      }
+
+      const y = pT + iH - barH;
+      const gr = ctx.createLinearGradient(0, y, 0, pT+iH);
+      gr.addColorStop(0, col);
+      gr.addColorStop(1, col + '28');
+      ctx.fillStyle = gr;
+      ctx.fillRect(x, y, bw, barH);
+
+      // top cap
+      ctx.fillStyle = col;
+      ctx.fillRect(x, y, bw, 2);
+
+      // sign label (+ or −) just above cap, then value label above that
+      ctx.fillStyle  = col;
+      ctx.font       = "9px 'DM Mono', monospace";
+      ctx.textAlign  = 'center';
+      ctx.fillText(a > 0 ? '+' : '−', x + bw/2, y - 12);
+
+      ctx.font = "8px 'DM Mono', monospace";
+      ctx.fillText(valLabel, x + bw/2, y - 3);
+
+    } else {
+      // ghost slot
+      ctx.fillStyle = 'rgba(255,255,255,0.025)';
+      ctx.fillRect(x, pT, bw, iH);
+    }
+
+    // Harmonic number
+    ctx.fillStyle = absA > 1e-4 ? col : 'rgba(122,128,153,0.4)';
+    ctx.font      = "8px 'DM Mono', monospace";
+    ctx.textAlign = 'center';
+    ctx.fillText(`n${n}`, x + bw/2, pT+iH+11);
+
+    // Frequency label
+    if (n <= 6 || n % 2 === 0) {
+      const freq = n * F0;
+      ctx.fillStyle = absA > 1e-4 ? 'rgba(228,232,240,0.5)' : 'rgba(122,128,153,0.25)';
+      ctx.font      = "7px 'DM Mono', monospace";
+      const fLabel  = freq >= 1000 ? (freq/1000).toFixed(2)+'k' : freq+'';
+      ctx.fillText(fLabel, x + bw/2, pT+iH+21);
+    }
+  }
+
+  // Y-axis labels
+  ctx.fillStyle = 'rgba(122,128,153,0.55)';
+  ctx.font      = "8px 'DM Mono', monospace";
+  ctx.textAlign = 'right';
+  if (specDb) {
+    ctx.fillText('0 dB', pL - 3, pT + 8);
+    ctx.fillText('-20',  pL - 3, pT + iH * (20/60) + 4);
+    ctx.fillText('-40',  pL - 3, pT + iH * (40/60) + 4);
+    ctx.fillText('-60',  pL - 3, pT + iH + 4);
+  } else {
+    ctx.fillText('1',   pL - 3, pT + 8);
+    ctx.fillText('0.5', pL - 3, pT + iH * 0.5 + 4);
+    ctx.fillText('0',   pL - 3, pT + iH + 4);
+  }
+
+  // Rotated y-axis label
+  ctx.save();
+  ctx.fillStyle = 'rgba(122,128,153,0.6)';
+  ctx.font      = "9px 'DM Mono', monospace";
+  ctx.textAlign = 'center';
+  ctx.translate(11, pT + iH/2);
+  ctx.rotate(-Math.PI/2);
+  ctx.fillText(specDb ? 'dB (re. |a|=1)' : 'amplitude', 0, 0);
+  ctx.restore();
+}
+
+function draw() { drawWaveform(); drawSpectrum(); }
+
+// ── Status bar ─────────────────────────────────────────────────────────────────
+function updateStatus() {
+  const active = [];
+  for (let i = 0; i < N_HARM; i++) if (amplitudes[i] !== 0) active.push(`n=${i+1}`);
+  document.getElementById('st-active').textContent = active.length ? active.join(', ') : '—';
+
+  // Peak of sum over one period
+  const nPts = 800;
+  let peak = 0;
+  for (let xi = 0; xi < nPts; xi++) {
+    const t = (xi / (nPts - 1)) / F0;
+    let v = 0;
+    for (let i = 0; i < N_HARM; i++) v += amplitudes[i] * Math.sin(2 * Math.PI * (i+1) * F0 * t);
+    if (Math.abs(v) > peak) peak = Math.abs(v);
+  }
+  document.getElementById('st-peak').textContent = peak > 1e-4 ? peak.toFixed(3) : '—';
+}
+
+// ── Audio ──────────────────────────────────────────────────────────────────────
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SAMPLE_RATE });
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function stopTone() {
+  if (toneSource) { try { toneSource.stop(); } catch(e) {} toneSource = null; }
+  isPlaying = false;
+  const btn = document.getElementById('play-btn');
+  btn.innerHTML = '▶ &nbsp;Play';
+  btn.classList.remove('playing');
+}
+
+function buildToneSignal() {
+  const nS   = Math.ceil(PLAY_DUR * SAMPLE_RATE);
+  const buf  = new Float32Array(nS);
+  const acts = [];
+  for (let i = 0; i < N_HARM; i++) {
+    if (amplitudes[i] !== 0) acts.push({ n: i+1, a: amplitudes[i] });
+  }
+  if (!acts.length) return null;
+
+  // Normalise so peak ≈ 0.85
+  let peakAbs = 0;
+  const checkN = 1000;
+  for (let xi = 0; xi < checkN; xi++) {
+    const t = xi / SAMPLE_RATE;
+    let v = 0;
+    for (const { n, a } of acts) v += a * Math.sin(2 * Math.PI * n * F0 * t);
+    if (Math.abs(v) > peakAbs) peakAbs = Math.abs(v);
+  }
+  if (peakAbs < 1e-6) return null;
+  const gain = 0.85 / peakAbs;
+
+  for (let s = 0; s < nS; s++) {
+    const t = s / SAMPLE_RATE;
+    let v = 0;
+    for (const { n, a } of acts) v += a * Math.sin(2 * Math.PI * n * F0 * t);
+    buf[s] = v * gain;
+  }
+
+  // Fade in/out
+  const fl = Math.min(2200, Math.floor(nS * 0.05));
+  for (let i = 0; i < fl; i++) {
+    const w = 0.5 * (1 - Math.cos(Math.PI * i / fl));
+    buf[i]        *= w;
+    buf[nS-1 - i] *= w;
+  }
+  return buf;
+}
+
+function playTone() {
+  if (isPlaying) { stopTone(); return; }
+  const ctx    = getAudioCtx();
+  const signal = buildToneSignal();
+  if (!signal) return;
+
+  const buffer = ctx.createBuffer(1, signal.length, SAMPLE_RATE);
+  buffer.copyToChannel(signal, 0);
+
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+  src.connect(ctx.destination);
+  src.start();
+  src.onended = stopTone;
+
+  toneSource = src;
+  isPlaying  = true;
+  const btn  = document.getElementById('play-btn');
+  btn.innerHTML = '■ &nbsp;Stop';
+  btn.classList.add('playing');
+}
+
+// ── Reset ──────────────────────────────────────────────────────────────────────
+function resetAll() {
+  amplitudes.fill(0);
+  for (let i = 0; i < N_HARM; i++) {
+    document.getElementById(`sl-${i}`).value = 0;
+    document.getElementById(`val-${i}`).textContent = '0.00';
+  }
+  draw(); updateStatus();
+}
+
+// ── Events ─────────────────────────────────────────────────────────────────────
+document.getElementById('play-btn').addEventListener('click', playTone);
+document.getElementById('reset-btn').addEventListener('click', resetAll);
+
+document.getElementById('db-toggle').addEventListener('click', () => {
+  specDb = !specDb;
+  const btn = document.getElementById('db-toggle');
+  btn.textContent = specDb ? 'dB' : 'Linear';
+  btn.classList.toggle('active', specDb);
+  document.getElementById('spectrum-title').innerHTML = specDb
+    ? 'Spectrum &nbsp;·&nbsp; frequency domain &nbsp;·&nbsp; dB (re. |a|=1)'
+    : 'Spectrum &nbsp;·&nbsp; frequency domain &nbsp;·&nbsp; linear';
+  drawSpectrum();
+});
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+buildSliders();
+updateStatus();
+let rzTimer;
+window.addEventListener('resize', () => { clearTimeout(rzTimer); rzTimer = setTimeout(draw, 80); });
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>
