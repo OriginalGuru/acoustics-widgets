@@ -8,4 +8,4 @@
 
 [AM/FM](https://originalguru.github.io/acoustics-widgets/modulation_widget.html)
 
-[Fourier Game Widget]{https://originalguru.github.io/acoustics-widgets/fourier_game_widget.html}
+[Fourier Game Widget](https://originalguru.github.io/acoustics-widgets/fourier_game_widget.html)
