@@ -67,7 +67,9 @@
   }
 
   .play-btn {
-    padding: 11px 22px;
+    padding: 11px 0;
+    width: 148px;
+    text-align: center;
     border-radius: 8px;
     border: none;
     background: var(--accent);
@@ -86,7 +88,9 @@
   .play-btn.playing { background: #ef4444; color: #fff; }
 
   .target-btn {
-    padding: 11px 18px;
+    padding: 11px 0;
+    width: 140px;
+    text-align: center;
     border-radius: 8px;
     border: 1px solid var(--border);
     background: var(--btn-bg);
@@ -132,6 +136,7 @@
   /* MSE score bar */
   .score-bar {
     flex: 1;
+    min-width: 0;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -142,9 +147,15 @@
     letter-spacing: 0.04em;
     display: flex;
     gap: 16px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
+    overflow: hidden;
     transition: border-color 0.3s, background 0.3s;
+  }
+  /* Fixed-width MSE readout so changing digits don't shift layout */
+  #st-mse {
+    display: inline-block;
+    min-width: 72px;
   }
   .score-bar span { color: var(--text); }
   .score-bar.solved {
