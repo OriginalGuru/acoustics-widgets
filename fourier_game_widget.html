@@ -973,24 +973,26 @@ function getAudioCtx() {
 }
 
 function buildSignal(coeffFn, usePhases = true) {
-  const nS   = Math.ceil(PLAY_DUR * SAMPLE_RATE);
-  const buf  = new Float32Array(nS);
-  let peakAbs = 0;
-  const checkN = 1000;
-  for (let xi = 0; xi < checkN; xi++) {
-    const t = xi / SAMPLE_RATE;
-    let v = 0;
-    for (let i = 0; i < N_HARM; i++) v += coeffFn(i+1) * Math.sin(2 * Math.PI * (i+1) * F0 * t + (usePhases ? phases[i] : 0));
-    if (Math.abs(v) > peakAbs) peakAbs = Math.abs(v);
-  }
-  if (peakAbs < 1e-6) return null;
-  const gain = 0.85 / peakAbs;
+  const nS  = Math.ceil(PLAY_DUR * SAMPLE_RATE);
+  const buf = new Float32Array(nS);
+
+  // First pass: fill buffer at unit gain
   for (let s = 0; s < nS; s++) {
     const t = s / SAMPLE_RATE;
     let v = 0;
     for (let i = 0; i < N_HARM; i++) v += coeffFn(i+1) * Math.sin(2 * Math.PI * (i+1) * F0 * t + (usePhases ? phases[i] : 0));
-    buf[s] = v * gain;
+    buf[s] = v;
   }
+
+  // Normalize by RMS rather than peak so phase randomization does not
+  // change playback loudness (peak/RMS ratio is phase-dependent).
+  const TARGET_RMS = 0.25;
+  let sumSq = 0;
+  for (let s = 0; s < nS; s++) sumSq += buf[s] * buf[s];
+  const rms = Math.sqrt(sumSq / nS);
+  if (rms < 1e-9) return null;
+  const gain = TARGET_RMS / rms;
+  for (let s = 0; s < nS; s++) buf[s] *= gain;
   const fl = Math.min(2200, Math.floor(nS * 0.05));
   for (let i = 0; i < fl; i++) {
     const w = 0.5 * (1 - Math.cos(Math.PI * i / fl));
