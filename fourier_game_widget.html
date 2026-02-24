@@ -115,6 +115,20 @@
   }
   .reset-btn:hover { border-color: var(--accent); color: var(--accent); }
 
+  .phase-btn {
+    padding: 11px 18px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--btn-bg);
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: border-color 0.14s, color 0.14s;
+  }
+  .phase-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+
   /* MSE score bar */
   .score-bar {
     flex: 1;
@@ -411,6 +425,8 @@
     <button class="play-btn"   id="play-btn">▶ &nbsp;Play yours</button>
     <button class="target-btn" id="target-play-btn">▶ &nbsp;Play target</button>
     <button class="reset-btn"  id="reset-btn">Reset sliders</button>
+    <button class="phase-btn"  id="rand-phase-btn">Randomize phases</button>
+    <button class="phase-btn"  id="reset-phase-btn">Reset phases</button>
     <div class="score-bar" id="score-bar">
       <div>Match: <span id="st-mse">—</span></div>
       <div class="mse-meter-wrap"><div class="mse-meter-fill" id="mse-fill" style="width:100%"></div></div>
@@ -539,6 +555,7 @@ function buildTargetSamples(targetKey) {
 
 // ── State ──────────────────────────────────────────────────────────────────────
 let amplitudes   = new Array(N_HARM).fill(0);
+let phases       = new Array(N_HARM).fill(0);   // radians, 0 = reference phase
 let currentTarget = 'sawtooth_rev';
 let targetSamples = buildTargetSamples(currentTarget);
 let targetCoeffs  = Array.from({length: N_HARM}, (_, i) => TARGETS[currentTarget].coeff(i + 1));
@@ -561,7 +578,7 @@ function computeMSE() {
   for (let xi = 0; xi < N_EVAL; xi++) {
     const t = (xi / (N_EVAL - 1)) * SHOW_SEC;
     let v = 0;
-    for (let i = 0; i < N_HARM; i++) v += amplitudes[i] * Math.sin(2 * Math.PI * (i+1) * F0 * t);
+    for (let i = 0; i < N_HARM; i++) v += amplitudes[i] * Math.sin(2 * Math.PI * (i+1) * F0 * t + phases[i]);
     userSamples[xi] = v;
     if (Math.abs(v) > peakAbs) peakAbs = Math.abs(v);
   }
@@ -777,7 +794,7 @@ function drawWaveform() {
       ctx.beginPath();
       for (let xi = 0; xi < nPts; xi++) {
         const t = (xi / (nPts - 1)) * tMax;
-        const y = cy - amp * Math.sign(amplitudes[idx]) * Math.sin(2 * Math.PI * n * F0 * t);
+        const y = cy - amp * Math.sin(2 * Math.PI * n * F0 * t + phases[idx]) * (amplitudes[idx] < 0 ? -1 : 1);
         xi === 0 ? ctx.moveTo(0, y) : ctx.lineTo((xi / (nPts-1)) * W, y);
       }
       ctx.stroke();
@@ -791,7 +808,7 @@ function drawWaveform() {
     for (let xi = 0; xi < 400; xi++) {
       const t = (xi / 399) * tMax;
       let v = 0;
-      for (let i = 0; i < N_HARM; i++) v += amplitudes[i] * Math.sin(2 * Math.PI * (i+1) * F0 * t);
+      for (let i = 0; i < N_HARM; i++) v += amplitudes[i] * Math.sin(2 * Math.PI * (i+1) * F0 * t + phases[i]);
       if (Math.abs(v) > peakAbs) peakAbs = Math.abs(v);
     }
   }
@@ -804,7 +821,7 @@ function drawWaveform() {
   for (let xi = 0; xi < nPts; xi++) {
     const t = (xi / (nPts - 1)) * tMax;
     let v = 0;
-    for (let i = 0; i < N_HARM; i++) v += amplitudes[i] * Math.sin(2 * Math.PI * (i+1) * F0 * t);
+    for (let i = 0; i < N_HARM; i++) v += amplitudes[i] * Math.sin(2 * Math.PI * (i+1) * F0 * t + phases[i]);
     const y = H/2 - (H * 0.42) * (v / peakAbs);
     xi === 0 ? ctx.moveTo(0, y) : ctx.lineTo((xi / (nPts-1)) * W, y);
   }
@@ -955,7 +972,7 @@ function getAudioCtx() {
   return audioCtx;
 }
 
-function buildSignal(coeffFn) {
+function buildSignal(coeffFn, usePhases = true) {
   const nS   = Math.ceil(PLAY_DUR * SAMPLE_RATE);
   const buf  = new Float32Array(nS);
   let peakAbs = 0;
@@ -963,7 +980,7 @@ function buildSignal(coeffFn) {
   for (let xi = 0; xi < checkN; xi++) {
     const t = xi / SAMPLE_RATE;
     let v = 0;
-    for (let i = 0; i < N_HARM; i++) v += coeffFn(i+1) * Math.sin(2 * Math.PI * (i+1) * F0 * t);
+    for (let i = 0; i < N_HARM; i++) v += coeffFn(i+1) * Math.sin(2 * Math.PI * (i+1) * F0 * t + (usePhases ? phases[i] : 0));
     if (Math.abs(v) > peakAbs) peakAbs = Math.abs(v);
   }
   if (peakAbs < 1e-6) return null;
@@ -971,7 +988,7 @@ function buildSignal(coeffFn) {
   for (let s = 0; s < nS; s++) {
     const t = s / SAMPLE_RATE;
     let v = 0;
-    for (let i = 0; i < N_HARM; i++) v += coeffFn(i+1) * Math.sin(2 * Math.PI * (i+1) * F0 * t);
+    for (let i = 0; i < N_HARM; i++) v += coeffFn(i+1) * Math.sin(2 * Math.PI * (i+1) * F0 * t + (usePhases ? phases[i] : 0));
     buf[s] = v * gain;
   }
   const fl = Math.min(2200, Math.floor(nS * 0.05));
@@ -1025,7 +1042,7 @@ function playTargetTone() {
     return;
   }
   const { coeff } = TARGETS[currentTarget];
-  const signal = buildSignal(coeff);
+  const signal = buildSignal(coeff, false);
   if (!signal) return;
   const ac  = getAudioCtx();
   const buf = ac.createBuffer(1, signal.length, SAMPLE_RATE);
@@ -1054,6 +1071,7 @@ function resetAll() {
     const vl = document.getElementById(`val-${i}`);
     if (vl) vl.textContent = '0.00';
   }
+  phases.fill(0);
   isSolved = false;
   document.getElementById('score-bar').classList.remove('solved');
   document.getElementById('slider-panel').classList.remove('solved');
@@ -1077,6 +1095,16 @@ function setTarget(key) {
 document.getElementById('play-btn').addEventListener('click', playUserTone);
 document.getElementById('target-play-btn').addEventListener('click', playTargetTone);
 document.getElementById('reset-btn').addEventListener('click', resetAll);
+
+document.getElementById('rand-phase-btn').addEventListener('click', () => {
+  for (let i = 0; i < N_HARM; i++) phases[i] = Math.random() * 2 * Math.PI;
+  draw(); updateScore();
+});
+
+document.getElementById('reset-phase-btn').addEventListener('click', () => {
+  phases.fill(0);
+  draw(); updateScore();
+});
 
 document.querySelectorAll('.t-btn').forEach(btn => {
   btn.addEventListener('click', () => {
