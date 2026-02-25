@@ -16,7 +16,7 @@
 
 [Fourier Spectrum Themed](https://originalguru.github.io/acoustics-widgets/fourier_widget_themed.html)
 
-[ADSR](https://originalguru.github.io/acoustics-widgets/adsr_widget_themed.html)
+[ADSR](https://originalguru.github.io/acoustics-widgets/adsr_themed.html)
 
 [AM/FM](https://originalguru.github.io/acoustics-widgets/modulation_widget_themed_fixed.html)
 
