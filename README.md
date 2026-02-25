@@ -1,5 +1,6 @@
 # acoustics-widgets
 
+## Basic versions
 [Constructive Waveform](https://originalguru.github.io/acoustics-widgets/constructive_waveform_widget.html)
 
 [Fourier Spectrum](https://originalguru.github.io/acoustics-widgets/fourier_widget_v3_fixed.html)
@@ -9,3 +10,6 @@
 [AM/FM](https://originalguru.github.io/acoustics-widgets/modulation_widget.html)
 
 [Fourier Game Widget](https://originalguru.github.io/acoustics-widgets/fourier_game_widget.html)
+
+## Light/Dark Themed
+[Fourier Spectrum Themed](https://originalguru.github.io/acoustics-widgets/fourier_widget_themed.html)
