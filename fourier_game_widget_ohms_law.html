@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fourier Challenge — Match the Waveform</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg:      #0f1117;
+    --surface: #181c27;
+    --border:  #2a2f3f;
+    --text:    #e4e8f0;
+    --muted:   #7a8099;
+    --accent:  #f0c040;
+    --accent2: #4fc3f7;
+    --btn-bg:  #1e2435;
+    --win-glow: #34d399;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 14px 40px;
+  }
+
+  h1 {
+    font-family: 'DM Mono', monospace;
+    font-size: 1.05rem;
+    font-weight: 400;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 3px;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    margin-bottom: 18px;
+    text-align: center;
+  }
+
+  .shell {
+    width: 100%;
+    max-width: 1140px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  /* ── TOP BAR ── */
+  .top-bar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .play-btn {
+    padding: 11px 0;
+    width: 148px;
+    text-align: center;
+    border-radius: 8px;
+    border: none;
+    background: var(--accent);
+    color: #0f1117;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.78rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: opacity 0.14s, transform 0.1s;
+    flex-shrink: 0;
+  }
+  .play-btn:hover  { opacity: 0.86; }
+  .play-btn:active { transform: scale(0.97); }
+  .play-btn.playing { background: #ef4444; color: #fff; }
+
+  .target-btn {
+    padding: 11px 0;
+    width: 140px;
+    text-align: center;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--btn-bg);
+    color: #f87171;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: all 0.14s;
+    flex-shrink: 0;
+  }
+  .target-btn:hover { border-color: #f87171; }
+  .target-btn.playing { background: #ef4444; color: #fff; border-color: #ef4444; }
+
+  .reset-btn {
+    padding: 11px 18px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--btn-bg);
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: border-color 0.14s, color 0.14s;
+  }
+  .reset-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .phase-btn {
+    padding: 11px 18px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--btn-bg);
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: border-color 0.14s, color 0.14s;
+  }
+  .phase-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  /* MSE score bar */
+  .score-bar {
+    flex: 1;
+    min-width: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 14px;
+    font-size: 0.68rem;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.04em;
+    display: flex;
+    gap: 16px;
+    flex-wrap: nowrap;
+    align-items: center;
+    overflow: hidden;
+    transition: border-color 0.3s, background 0.3s;
+    min-height: 42px;
+  }
+  /* Fixed-width MSE readout so changing digits don't shift layout */
+  #st-mse {
+    display: inline-block;
+    min-width: 72px;
+  }
+  .score-bar span { color: var(--text); }
+  .score-bar.solved {
+    border-color: var(--win-glow);
+    background: rgba(52, 211, 153, 0.07);
+  }
+
+  /* MSE meter strip */
+  .mse-meter-wrap {
+    flex: 1;
+    min-width: 80px;
+    height: 6px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .mse-meter-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: #f87171;
+    transition: width 0.1s, background 0.3s;
+  }
+
+  /* ── TARGET SELECTOR ── */
+  .target-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .target-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    flex-shrink: 0;
+  }
+  .t-btn {
+    background: var(--btn-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.66rem;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: all 0.14s;
+    letter-spacing: 0.03em;
+  }
+  .t-btn:hover { border-color: #f87171; color: #f87171; }
+  .t-btn.active {
+    background: rgba(248,113,113,0.12);
+    border-color: #f87171;
+    color: #f87171;
+    font-weight: 500;
+  }
+
+  /* ── SLIDER PANEL ── */
+  .slider-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 14px 14px;
+    transition: border-color 0.4s, box-shadow 0.4s;
+    box-shadow: 0 0 0 1px transparent, 0 0 24px transparent;
+  }
+  .slider-panel.solved {
+    border-color: var(--win-glow);
+    box-shadow: 0 0 0 1px rgba(52,211,153,0.25), 0 0 24px rgba(52,211,153,0.12);
+  }
+
+  .panel-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .harmonic-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px 6px;
+  }
+  @media (min-width: 700px) {
+    .harmonic-grid { grid-template-columns: repeat(12, 1fr); gap: 8px 4px; }
+  }
+
+  .h-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+  }
+  .h-n-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.04em;
+  }
+  .h-val {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.56rem;
+    color: var(--muted);
+    min-width: 28px;
+    text-align: center;
+  }
+
+  /* target hint badge */
+  .h-hint {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.50rem;
+    color: rgba(248,113,113,0.5);
+    min-width: 28px;
+    text-align: center;
+    letter-spacing: 0.02em;
+  }
+
+  .v-slider-wrap {
+    position: relative;
+    height: 110px;
+    width: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .v-slider-wrap::before {
+    content: '';
+    position: absolute;
+    left: 50%; top: 0; bottom: 0;
+    width: 1px;
+    background: rgba(255,255,255,0.06);
+    pointer-events: none;
+  }
+
+  input[type=range].vert {
+    -webkit-appearance: slider-vertical;
+    appearance: slider-vertical;
+    writing-mode: vertical-lr;
+    direction: rtl;
+    width: 6px;
+    height: 100px;
+    cursor: pointer;
+    outline: none;
+    border-radius: 3px;
+    padding: 0;
+  }
+  input[type=range].vert::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid var(--bg);
+    transition: transform 0.1s;
+  }
+  input[type=range].vert::-webkit-slider-thumb:hover { transform: scale(1.2); }
+  input[type=range].vert::-moz-range-thumb {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid var(--bg);
+  }
+
+  .zero-btn {
+    background: var(--btn-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.55rem;
+    padding: 3px 5px;
+    cursor: pointer;
+    transition: border-color 0.14s, color 0.14s;
+    letter-spacing: 0.03em;
+  }
+  .zero-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── CANVAS PANELS ── */
+  .vis-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  @media (min-width: 700px) {
+    .vis-row { grid-template-columns: 1fr 1fr; }
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 18px 10px;
+    display: flex;
+    flex-direction: column;
+  }
+  canvas { width: 100%; border-radius: 3px; display: block; }
+
+  .db-toggle {
+    padding: 5px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--btn-bg);
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: all 0.14s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .db-toggle:hover { border-color: var(--accent2); color: var(--accent2); }
+  .db-toggle.active {
+    border-color: var(--accent2);
+    color: var(--accent2);
+    background: rgba(79,195,247,0.08);
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    gap: 8px;
+  }
+  .panel-header .panel-title { margin-bottom: 0; }
+
+  /* win flash overlay on waveform panel */
+  .waveform-panel-wrap {
+    position: relative;
+  }
+  .win-flash {
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    pointer-events: none;
+    opacity: 0;
+    background: radial-gradient(ellipse at center, rgba(52,211,153,0.18) 0%, transparent 70%);
+    transition: opacity 0.2s;
+  }
+  .win-flash.show { opacity: 1; }
+
+  /* legend */
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px;
+  }
+  .leg-item {
+    display: flex; align-items: center; gap: 5px;
+    font-family: 'DM Mono', monospace; font-size: 0.58rem; color: var(--muted);
+  }
+  .leg-sw { width: 18px; height: 2px; border-radius: 1px; }
+
+  /* solved badge — uses visibility so it never shifts layout */
+  .solved-badge {
+    visibility: hidden;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--win-glow);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .solved-badge.show {
+    visibility: visible;
+    animation: pulse-badge 1.2s ease-in-out infinite;
+  }
+  @keyframes pulse-badge {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Fourier Challenge</h1>
+<p class="subtitle">A3 = 220 Hz &nbsp;·&nbsp; Match the target waveform using harmonic sliders</p>
+
+<div class="shell">
+
+  <!-- TOP BAR -->
+  <div class="top-bar">
+    <button class="play-btn"   id="play-btn">▶ &nbsp;Play yours</button>
+    <button class="target-btn" id="target-play-btn">▶ &nbsp;Play target</button>
+    <button class="reset-btn"  id="reset-btn">Reset sliders</button>
+    <button class="phase-btn"  id="rand-phase-btn">Randomize phases</button>
+    <button class="phase-btn"  id="reset-phase-btn">Reset phases</button>
+    <div class="score-bar" id="score-bar">
+      <div>Match: <span id="st-mse">—</span></div>
+      <div class="mse-meter-wrap"><div class="mse-meter-fill" id="mse-fill" style="width:100%"></div></div>
+      <div id="st-threshold" style="font-size:0.6rem">threshold &lt; 1%</div>
+      <span class="solved-badge" id="solved-badge">✓ Solved!</span>
+    </div>
+  </div>
+
+  <!-- TARGET SELECTOR -->
+  <div class="target-row">
+    <span class="target-label">Target:</span>
+    <button class="t-btn active" data-target="sawtooth_rev">Sawtooth ↓</button>
+    <button class="t-btn" data-target="sawtooth">Sawtooth ↑</button>
+    <button class="t-btn" data-target="square">Square</button>
+    <button class="t-btn" data-target="triangle">Triangle</button>
+    <button class="t-btn" id="btn-random" data-target="random">Random 🎲</button>
+  </div>
+
+  <!-- HARMONIC SLIDERS -->
+  <div class="slider-panel" id="slider-panel">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+      <div class="panel-title" style="margin-bottom:0">Your harmonic amplitudes &nbsp;(drag up = +1, down = −1)</div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <span style="font-family:'DM Mono',monospace;font-size:0.58rem;color:rgba(248,113,113,0.6)">hint row shows target sign</span>
+      </div>
+    </div>
+    <div class="harmonic-grid" id="harmonic-grid"></div>
+  </div>
+
+  <!-- WAVEFORM + SPECTRUM -->
+  <div class="vis-row">
+    <div class="panel waveform-panel-wrap" id="waveform-panel-outer">
+      <div class="panel-title">Waveform &nbsp;·&nbsp; time domain</div>
+      <canvas id="waveform-canvas" height="200"></canvas>
+      <div class="legend">
+        <div class="leg-item"><div class="leg-sw" style="background:#f87171;height:2px"></div>Target</div>
+        <div class="leg-item"><div class="leg-sw" style="background:#f0c040;height:2.5px"></div>Your sum</div>
+      </div>
+      <div class="win-flash" id="win-flash"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title" id="spectrum-title">Spectrum &nbsp;·&nbsp; frequency domain &nbsp;·&nbsp; linear</div>
+        <button class="db-toggle" id="db-toggle">Linear</button>
+      </div>
+      <canvas id="spectrum-canvas" height="200"></canvas>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── Constants ──────────────────────────────────────────────────────────────────
+const F0          = 220;
+const N_HARM      = 12;
+const SAMPLE_RATE = 44100;
+const PLAY_DUR    = 2.0;
+const SHOW_SEC    = 3.5 / F0;
+const N_EVAL      = 600;   // points used for MSE evaluation
+
+// Win threshold: normalised MSE < this value triggers "solved"
+// MSE is computed on waveforms normalised to peak=1, so 0.01 means
+// the RMS error is ~10% of the peak amplitude — a fairly tight match.
+const WIN_THRESHOLD = 0.01;
+
+const H_COLORS = [
+  '#f87171','#fb923c','#fbbf24','#a3e635',
+  '#34d399','#22d3ee','#60a5fa','#818cf8',
+  '#c084fc','#f472b6','#fb7185','#e2e8f0'
+];
+
+// ── Target waveform definitions ────────────────────────────────────────────────
+// Each target is defined by its Fourier coefficients (sin series, n=1..12).
+// Reversed sawtooth: a_n = +1/n (standard sawtooth has a_n = -1/n going up).
+// We normalise peak to 1 for display and MSE.
+// Random target coefficients — generated once on load, stable for the session.
+// Each a_n is uniform in [-1, +1].
+const randomCoeffs = Array.from({length: N_HARM}, () => (Math.random() * 2 - 1));
+
+const TARGETS = {
+  sawtooth_rev: {
+    label: 'Reversed Sawtooth',
+    coeff: n => 1.0 / n,
+  },
+  sawtooth: {
+    label: 'Sawtooth',
+    coeff: n => -1.0 / n,
+  },
+  square: {
+    label: 'Square Wave',
+    coeff: n => (n % 2 === 1) ? 1.0 / n : 0,
+  },
+  triangle: {
+    label: 'Triangle Wave',
+    coeff: n => {
+      if (n % 2 === 0) return 0;
+      const k = (n - 1) / 2;
+      return (k % 2 === 0 ? 1 : -1) / (n * n);
+    },
+  },
+  random: {
+    label: 'Random',
+    coeff: n => randomCoeffs[n - 1],
+  },
+};
+
+// Precompute normalised target samples for MSE and drawing
+function buildTargetSamples(targetKey) {
+  const { coeff } = TARGETS[targetKey];
+  const raw = new Float32Array(N_EVAL);
+  for (let xi = 0; xi < N_EVAL; xi++) {
+    const t = (xi / (N_EVAL - 1)) * SHOW_SEC;
+    let v = 0;
+    for (let i = 0; i < N_HARM; i++) {
+      const n = i + 1;
+      v += coeff(n) * Math.sin(2 * Math.PI * n * F0 * t);
+    }
+    raw[xi] = v;
+  }
+  let peak = 0;
+  for (let xi = 0; xi < N_EVAL; xi++) if (Math.abs(raw[xi]) > peak) peak = Math.abs(raw[xi]);
+  if (peak < 1e-9) peak = 1;
+  for (let xi = 0; xi < N_EVAL; xi++) raw[xi] /= peak;
+  return raw;
+}
+
+// ── State ──────────────────────────────────────────────────────────────────────
+let amplitudes   = new Array(N_HARM).fill(0);
+let phases       = new Array(N_HARM).fill(0);   // radians, 0 = reference phase
+let currentTarget = 'sawtooth_rev';
+let targetSamples = buildTargetSamples(currentTarget);
+let targetCoeffs  = Array.from({length: N_HARM}, (_, i) => TARGETS[currentTarget].coeff(i + 1));
+
+let audioCtx      = null;
+let toneSource    = null;
+let targetSource  = null;
+let isPlaying     = false;
+let isTargetPlaying = false;
+let specDb        = false;
+let isSolved      = false;
+
+// ── MSE calculation ────────────────────────────────────────────────────────────
+function computeMSE() {
+  // Evaluate user's sum over the same N_EVAL points
+  let sumSq = 0;
+  let peakAbs = 0;
+
+  const userSamples = new Float32Array(N_EVAL);
+  for (let xi = 0; xi < N_EVAL; xi++) {
+    const t = (xi / (N_EVAL - 1)) * SHOW_SEC;
+    let v = 0;
+    for (let i = 0; i < N_HARM; i++) v += amplitudes[i] * Math.sin(2 * Math.PI * (i+1) * F0 * t + phases[i]);
+    userSamples[xi] = v;
+    if (Math.abs(v) > peakAbs) peakAbs = Math.abs(v);
+  }
+  // Normalise user sum to peak=1 before comparing (so the score is about shape, not scale)
+  if (peakAbs < 1e-9) return 1.0;  // silent = worst score
+  for (let xi = 0; xi < N_EVAL; xi++) userSamples[xi] /= peakAbs;
+
+  for (let xi = 0; xi < N_EVAL; xi++) {
+    const diff = userSamples[xi] - targetSamples[xi];
+    sumSq += diff * diff;
+  }
+  return sumSq / N_EVAL;
+}
+
+// ── Build slider UI ────────────────────────────────────────────────────────────
+function buildSliders() {
+  const grid = document.getElementById('harmonic-grid');
+  grid.innerHTML = '';
+
+  for (let i = 0; i < N_HARM; i++) {
+    const n   = i + 1;
+    const col = H_COLORS[i];
+    const tc  = targetCoeffs[i];
+    const hintSign = tc > 0.001 ? '+' : tc < -0.001 ? '−' : '·';
+    const hintOpacity = Math.abs(tc) > 0.001 ? 1 : 0.2;
+
+    const col_el = document.createElement('div');
+    col_el.className = 'h-col';
+    col_el.innerHTML = `
+      <span class="h-n-label" style="color:${col}">n=${n}</span>
+      <div class="v-slider-wrap">
+        <input type="range" class="vert" id="sl-${i}"
+          min="-100" max="100" value="0" step="1"
+          data-idx="${i}">
+      </div>
+      <span class="h-val" id="val-${i}">0.00</span>
+      <span class="h-hint" id="hint-${i}" style="opacity:${hintOpacity}">${hintSign}</span>
+      <button class="zero-btn" data-idx="${i}">zero</button>`;
+    grid.appendChild(col_el);
+
+    const slStyle = document.createElement('style');
+    slStyle.textContent = `
+      #sl-${i} { background: ${col}55; }
+      #sl-${i}::-webkit-slider-thumb { background: ${col}; }
+      #sl-${i}::-moz-range-thumb     { background: ${col}; }
+    `;
+    document.head.appendChild(slStyle);
+  }
+
+  document.querySelectorAll('input[type=range].vert').forEach(sl => {
+    sl.addEventListener('input', e => {
+      const idx = +e.target.dataset.idx;
+      amplitudes[idx] = parseInt(e.target.value) / 100;
+      document.getElementById(`val-${idx}`).textContent = amplitudes[idx].toFixed(2);
+      draw(); updateScore();
+    });
+  });
+
+  document.querySelectorAll('.zero-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const idx = +e.target.dataset.idx;
+      amplitudes[idx] = 0;
+      document.getElementById(`sl-${idx}`).value = 0;
+      document.getElementById(`val-${idx}`).textContent = '0.00';
+      draw(); updateScore();
+    });
+  });
+}
+
+function updateHints() {
+  for (let i = 0; i < N_HARM; i++) {
+    const tc = targetCoeffs[i];
+    const hintSign = tc > 0.001 ? '+' : tc < -0.001 ? '−' : '·';
+    const hintOpacity = Math.abs(tc) > 0.001 ? 1 : 0.2;
+    const el = document.getElementById(`hint-${i}`);
+    if (el) { el.textContent = hintSign; el.style.opacity = hintOpacity; }
+  }
+}
+
+// ── Score / win state ──────────────────────────────────────────────────────────
+let winFlashTimer = null;
+
+function updateScore() {
+  const mse = computeMSE();
+  const pct = (mse * 100).toFixed(2);
+
+  document.getElementById('st-mse').textContent = `MSE ${pct}%`;
+
+  // Meter: map mse=0..0.5 → fill 0..100%
+  const fillPct = Math.min(mse / 0.5, 1) * 100;
+  const fill = document.getElementById('mse-fill');
+  fill.style.width = fillPct + '%';
+
+  const solved = mse < WIN_THRESHOLD;
+
+  if (solved && !isSolved) {
+    // Trigger win state
+    isSolved = true;
+    document.getElementById('score-bar').classList.add('solved');
+    document.getElementById('slider-panel').classList.add('solved');
+    document.getElementById('solved-badge').classList.add('show');
+    fill.style.background = 'var(--win-glow)';
+    triggerWinFlash();
+  } else if (!solved && isSolved) {
+    // Player moved away from solution
+    isSolved = false;
+    document.getElementById('score-bar').classList.remove('solved');
+    document.getElementById('slider-panel').classList.remove('solved');
+    document.getElementById('solved-badge').classList.remove('show');
+    fill.style.background = '#f87171';
+    document.getElementById('win-flash').classList.remove('show');
+  } else if (!solved) {
+    // Colour meter from red → yellow → green as score improves
+    const t = 1 - fillPct / 100;
+    const r = Math.round(248 - t * (248 - 52));
+    const g = Math.round(113 + t * (211 - 113));
+    const b = Math.round(113 - t * 113);
+    fill.style.background = `rgb(${r},${g},${b})`;
+  }
+}
+
+function triggerWinFlash() {
+  const flash = document.getElementById('win-flash');
+  let count = 0;
+  const toggle = () => {
+    flash.classList.toggle('show');
+    count++;
+    if (count < 6) setTimeout(toggle, 220);
+    else flash.classList.add('show');  // leave glow on
+  };
+  toggle();
+}
+
+// ── Canvas resize ──────────────────────────────────────────────────────────────
+function resizeCanvas(canvas) {
+  const dpr  = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  const needW = Math.round(rect.width  * dpr);
+  const needH = Math.round(rect.height * dpr);
+  if (canvas.width !== needW || canvas.height !== needH) {
+    canvas.width  = needW;
+    canvas.height = needH;
+    canvas.getContext('2d').scale(dpr, dpr);
+  }
+}
+
+// ── Draw waveform ──────────────────────────────────────────────────────────────
+function drawWaveform() {
+  const canvas = document.getElementById('waveform-canvas');
+  resizeCanvas(canvas);
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.width / dpr, H = canvas.height / dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  const nPts = 900;
+  const tMax = SHOW_SEC;
+
+  // Zero line
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+  ctx.lineWidth = 1; ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
+
+  // Period ticks
+  ctx.setLineDash([3, 5]);
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  for (let p = 1; p < 4; p++) {
+    const x = (p / 3.5) * W;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // ── Target waveform (red, solid) ──
+  const { coeff } = TARGETS[currentTarget];
+
+  // Compute peak of target for normalisation
+  let tPeak = 0;
+  for (let xi = 0; xi < nPts; xi++) {
+    const t = (xi / (nPts - 1)) * tMax;
+    let v = 0;
+    for (let i = 0; i < N_HARM; i++) v += coeff(i+1) * Math.sin(2 * Math.PI * (i+1) * F0 * t);
+    if (Math.abs(v) > tPeak) tPeak = Math.abs(v);
+  }
+  if (tPeak < 1e-9) tPeak = 1;
+
+  ctx.strokeStyle = '#f87171';
+  ctx.lineWidth   = 1.8;
+  ctx.beginPath();
+  for (let xi = 0; xi < nPts; xi++) {
+    const t = (xi / (nPts - 1)) * tMax;
+    let v = 0;
+    for (let i = 0; i < N_HARM; i++) v += coeff(i+1) * Math.sin(2 * Math.PI * (i+1) * F0 * t);
+    const y = H/2 - (H * 0.42) * (v / tPeak);
+    xi === 0 ? ctx.moveTo(0, y) : ctx.lineTo((xi / (nPts-1)) * W, y);
+  }
+  ctx.stroke();
+
+  // ── Individual component traces (faint) ──
+  const active = [];
+  for (let i = 0; i < N_HARM; i++) if (amplitudes[i] !== 0) active.push(i);
+
+  if (active.length > 0) {
+    const laneZoneH = H * 0.36;
+    const laneH     = laneZoneH / active.length;
+    active.forEach((idx, rank) => {
+      const n   = idx + 1;
+      const col = H_COLORS[idx];
+      const cy  = H * 0.76 - rank * laneH;
+      const amp = Math.min(laneH * 0.44, H * 0.05);
+      ctx.strokeStyle = col;
+      ctx.globalAlpha = 0.22;
+      ctx.lineWidth   = 1.0;
+      ctx.beginPath();
+      for (let xi = 0; xi < nPts; xi++) {
+        const t = (xi / (nPts - 1)) * tMax;
+        const y = cy - amp * Math.sin(2 * Math.PI * n * F0 * t + phases[idx]) * (amplitudes[idx] < 0 ? -1 : 1);
+        xi === 0 ? ctx.moveTo(0, y) : ctx.lineTo((xi / (nPts-1)) * W, y);
+      }
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    });
+  }
+
+  // ── User sum (gold) ──
+  let peakAbs = 0;
+  if (active.length > 0) {
+    for (let xi = 0; xi < 400; xi++) {
+      const t = (xi / 399) * tMax;
+      let v = 0;
+      for (let i = 0; i < N_HARM; i++) v += amplitudes[i] * Math.sin(2 * Math.PI * (i+1) * F0 * t + phases[i]);
+      if (Math.abs(v) > peakAbs) peakAbs = Math.abs(v);
+    }
+  }
+  if (peakAbs < 1e-6) peakAbs = 1;
+
+  ctx.strokeStyle = '#f0c040';
+  ctx.lineWidth   = 2.5;
+  ctx.beginPath();
+  const drawn = active.length > 0;
+  for (let xi = 0; xi < nPts; xi++) {
+    const t = (xi / (nPts - 1)) * tMax;
+    let v = 0;
+    for (let i = 0; i < N_HARM; i++) v += amplitudes[i] * Math.sin(2 * Math.PI * (i+1) * F0 * t + phases[i]);
+    const y = H/2 - (H * 0.42) * (v / peakAbs);
+    xi === 0 ? ctx.moveTo(0, y) : ctx.lineTo((xi / (nPts-1)) * W, y);
+  }
+  if (drawn) ctx.stroke();
+
+  // Axis labels
+  ctx.fillStyle = 'rgba(122,128,153,0.6)';
+  ctx.font      = "9px 'DM Mono', monospace";
+  ctx.textAlign = 'left';
+  ctx.fillText('0', 4, H - 3);
+  ctx.textAlign = 'right';
+  ctx.fillText(`${(tMax * 1000).toFixed(1)} ms`, W - 4, H - 3);
+}
+
+// ── Draw spectrum ──────────────────────────────────────────────────────────────
+function drawSpectrum() {
+  const canvas = document.getElementById('spectrum-canvas');
+  resizeCanvas(canvas);
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.width / dpr, H = canvas.height / dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  const pL=38, pR=10, pT=26, pB=38;
+  const iW = W - pL - pR, iH = H - pT - pB;
+  const DB_FLOOR = -60;
+
+  // Axes
+  ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(pL, pT); ctx.lineTo(pL, pT+iH); ctx.lineTo(pL+iW, pT+iH);
+  ctx.stroke();
+
+  // Grid
+  ctx.setLineDash([2, 4]);
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  if (specDb) {
+    for (const dbVal of [-20, -40, -60]) {
+      const y = pT + iH * (dbVal / DB_FLOOR);
+      ctx.beginPath(); ctx.moveTo(pL, y); ctx.lineTo(pL+iW, y); ctx.stroke();
+    }
+  } else {
+    for (let g = 0.25; g < 1; g += 0.25) {
+      const y = pT + iH * (1 - g);
+      ctx.beginPath(); ctx.moveTo(pL, y); ctx.lineTo(pL+iW, y); ctx.stroke();
+    }
+  }
+  ctx.setLineDash([]);
+
+  const { coeff } = TARGETS[currentTarget];
+
+  // Max |a| across user + target for shared scale
+  let maxA = 0;
+  for (let i = 0; i < N_HARM; i++) {
+    maxA = Math.max(maxA, Math.abs(amplitudes[i]), Math.abs(coeff(i+1)));
+  }
+  if (maxA < 1e-6) maxA = 1;
+
+  const slotW = iW / N_HARM;
+
+  for (let i = 0; i < N_HARM; i++) {
+    const n   = i + 1;
+    const col = H_COLORS[i];
+    const a   = amplitudes[i];
+    const absA = Math.abs(a);
+    const tc  = coeff(n);
+
+    const x  = pL + i * slotW + slotW * 0.12;
+    const bw = slotW * 0.76;
+    const halfBw = bw / 2;
+
+    // User bar
+    if (absA > 1e-4) {
+      let barH;
+      if (specDb) {
+        const dbVal = Math.max(20 * Math.log10(absA / maxA), DB_FLOOR);
+        barH = Math.max((1 - dbVal / DB_FLOOR) * iH, 1);
+      } else {
+        barH = (absA / maxA) * iH;
+      }
+      const y = pT + iH - barH;
+      const gr = ctx.createLinearGradient(0, y, 0, pT + iH);
+      gr.addColorStop(0, col);
+      gr.addColorStop(1, col + '28');
+      ctx.fillStyle = gr;
+      ctx.fillRect(x, y, bw, barH);
+      ctx.fillStyle = col;
+      ctx.fillRect(x, y, bw, 2);
+
+      ctx.fillStyle  = col;
+      ctx.font       = "9px 'DM Mono', monospace";
+      ctx.textAlign  = 'center';
+      ctx.fillText(a > 0 ? '+' : '−', x + halfBw, y - 12);
+      ctx.font = "8px 'DM Mono', monospace";
+      ctx.fillText(absA < 0.1 ? absA.toFixed(3) : absA.toFixed(2), x + halfBw, y - 3);
+    } else {
+      // Ghost slot
+      ctx.fillStyle = 'rgba(255,255,255,0.02)';
+      ctx.fillRect(x, pT, bw, iH);
+    }
+
+    // n label
+    ctx.fillStyle = absA > 1e-4 ? col : 'rgba(122,128,153,0.4)';
+    ctx.font      = "8px 'DM Mono', monospace";
+    ctx.textAlign = 'center';
+    ctx.fillText(`n${n}`, x + halfBw, pT + iH + 11);
+
+    if (n <= 6 || n % 2 === 0) {
+      const freq = n * F0;
+      ctx.fillStyle = absA > 1e-4 ? 'rgba(228,232,240,0.5)' : 'rgba(122,128,153,0.25)';
+      ctx.font      = "7px 'DM Mono', monospace";
+      ctx.fillText(freq >= 1000 ? (freq/1000).toFixed(2)+'k' : freq+'', x + halfBw, pT + iH + 21);
+    }
+  }
+
+  // Y-axis
+  ctx.fillStyle = 'rgba(122,128,153,0.55)';
+  ctx.font      = "8px 'DM Mono', monospace";
+  ctx.textAlign = 'right';
+  if (specDb) {
+    ctx.fillText('0 dB', pL-3, pT+6);
+    ctx.fillText('-20',  pL-3, pT + iH*(20/60) + 4);
+    ctx.fillText('-40',  pL-3, pT + iH*(40/60) + 4);
+    ctx.fillText('-60',  pL-3, pT + iH + 4);
+  } else {
+    ctx.fillText('1',   pL-3, pT+6);
+    ctx.fillText('0.5', pL-3, pT + iH*0.5 + 4);
+    ctx.fillText('0',   pL-3, pT + iH + 4);
+  }
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(122,128,153,0.6)';
+  ctx.font      = "9px 'DM Mono', monospace";
+  ctx.textAlign = 'center';
+  ctx.translate(11, pT + iH/2);
+  ctx.rotate(-Math.PI/2);
+  ctx.fillText(specDb ? 'dB (re. |a|=1)' : 'amplitude', 0, 0);
+  ctx.restore();
+}
+
+function draw() { drawWaveform(); drawSpectrum(); }
+
+// ── Audio ──────────────────────────────────────────────────────────────────────
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SAMPLE_RATE });
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function buildSignal(coeffFn, usePhases = true) {
+  const nS  = Math.ceil(PLAY_DUR * SAMPLE_RATE);
+  const buf = new Float32Array(nS);
+
+  // First pass: fill buffer at unit gain
+  for (let s = 0; s < nS; s++) {
+    const t = s / SAMPLE_RATE;
+    let v = 0;
+    for (let i = 0; i < N_HARM; i++) v += coeffFn(i+1) * Math.sin(2 * Math.PI * (i+1) * F0 * t + (usePhases ? phases[i] : 0));
+    buf[s] = v;
+  }
+
+  // Normalize by RMS rather than peak so phase randomization does not
+  // change playback loudness (peak/RMS ratio is phase-dependent).
+  const TARGET_RMS = 0.25;
+  let sumSq = 0;
+  for (let s = 0; s < nS; s++) sumSq += buf[s] * buf[s];
+  const rms = Math.sqrt(sumSq / nS);
+  if (rms < 1e-9) return null;
+  const gain = TARGET_RMS / rms;
+  for (let s = 0; s < nS; s++) buf[s] *= gain;
+  const fl = Math.min(2200, Math.floor(nS * 0.05));
+  for (let i = 0; i < fl; i++) {
+    const w = 0.5 * (1 - Math.cos(Math.PI * i / fl));
+    buf[i] *= w; buf[nS-1-i] *= w;
+  }
+  return buf;
+}
+
+function stopSource(src) {
+  if (src) { try { src.stop(); } catch(e) {} }
+  return null;
+}
+
+function playUserTone() {
+  if (isPlaying) {
+    toneSource = stopSource(toneSource);
+    isPlaying = false;
+    document.getElementById('play-btn').innerHTML = '▶ &nbsp;Play yours';
+    document.getElementById('play-btn').classList.remove('playing');
+    return;
+  }
+  const coeffFn = i => amplitudes[i - 1];
+  const signal  = buildSignal(coeffFn);
+  if (!signal) return;
+  const ac  = getAudioCtx();
+  const buf = ac.createBuffer(1, signal.length, SAMPLE_RATE);
+  buf.copyToChannel(signal, 0);
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  src.connect(ac.destination);
+  src.start();
+  src.onended = () => {
+    isPlaying = false;
+    document.getElementById('play-btn').innerHTML = '▶ &nbsp;Play yours';
+    document.getElementById('play-btn').classList.remove('playing');
+  };
+  toneSource = src;
+  isPlaying  = true;
+  document.getElementById('play-btn').innerHTML = '■ &nbsp;Stop';
+  document.getElementById('play-btn').classList.add('playing');
+}
+
+function playTargetTone() {
+  if (isTargetPlaying) {
+    targetSource = stopSource(targetSource);
+    isTargetPlaying = false;
+    document.getElementById('target-play-btn').innerHTML = '▶ &nbsp;Play target';
+    document.getElementById('target-play-btn').classList.remove('playing');
+    return;
+  }
+  const { coeff } = TARGETS[currentTarget];
+  const signal = buildSignal(coeff, false);
+  if (!signal) return;
+  const ac  = getAudioCtx();
+  const buf = ac.createBuffer(1, signal.length, SAMPLE_RATE);
+  buf.copyToChannel(signal, 0);
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  src.connect(ac.destination);
+  src.start();
+  src.onended = () => {
+    isTargetPlaying = false;
+    document.getElementById('target-play-btn').innerHTML = '▶ &nbsp;Play target';
+    document.getElementById('target-play-btn').classList.remove('playing');
+  };
+  targetSource = src;
+  isTargetPlaying = true;
+  document.getElementById('target-play-btn').innerHTML = '■ &nbsp;Stop';
+  document.getElementById('target-play-btn').classList.add('playing');
+}
+
+// ── Reset ──────────────────────────────────────────────────────────────────────
+function resetAll() {
+  amplitudes.fill(0);
+  for (let i = 0; i < N_HARM; i++) {
+    const sl = document.getElementById(`sl-${i}`);
+    if (sl) sl.value = 0;
+    const vl = document.getElementById(`val-${i}`);
+    if (vl) vl.textContent = '0.00';
+  }
+  phases.fill(0);
+  isSolved = false;
+  document.getElementById('score-bar').classList.remove('solved');
+  document.getElementById('slider-panel').classList.remove('solved');
+  document.getElementById('solved-badge').classList.remove('show');
+  document.getElementById('mse-fill').style.background = '#f87171';
+  document.getElementById('win-flash').classList.remove('show');
+  draw(); updateScore();
+}
+
+// ── Target switch ──────────────────────────────────────────────────────────────
+function setTarget(key) {
+  currentTarget  = key;
+  targetSamples  = buildTargetSamples(key);
+  targetCoeffs   = Array.from({length: N_HARM}, (_, i) => TARGETS[key].coeff(i + 1));
+  document.querySelectorAll('.t-btn').forEach(b => b.classList.toggle('active', b.dataset.target === key));
+  updateHints();
+  resetAll();
+}
+
+// ── Events ─────────────────────────────────────────────────────────────────────
+document.getElementById('play-btn').addEventListener('click', playUserTone);
+document.getElementById('target-play-btn').addEventListener('click', playTargetTone);
+document.getElementById('reset-btn').addEventListener('click', resetAll);
+
+document.getElementById('rand-phase-btn').addEventListener('click', () => {
+  for (let i = 0; i < N_HARM; i++) phases[i] = Math.random() * 2 * Math.PI;
+  draw(); updateScore();
+});
+
+document.getElementById('reset-phase-btn').addEventListener('click', () => {
+  phases.fill(0);
+  draw(); updateScore();
+});
+
+document.querySelectorAll('.t-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.dataset.target === 'random') {
+      // Reseed coefficients so clicking again gives a new puzzle
+      for (let i = 0; i < N_HARM; i++) randomCoeffs[i] = Math.random() * 2 - 1;
+    }
+    setTarget(btn.dataset.target);
+  });
+});
+
+document.getElementById('db-toggle').addEventListener('click', () => {
+  specDb = !specDb;
+  const btn = document.getElementById('db-toggle');
+  btn.textContent = specDb ? 'dB' : 'Linear';
+  btn.classList.toggle('active', specDb);
+  document.getElementById('spectrum-title').innerHTML = specDb
+    ? 'Spectrum &nbsp;·&nbsp; frequency domain &nbsp;·&nbsp; dB (re. |a|=1)'
+    : 'Spectrum &nbsp;·&nbsp; frequency domain &nbsp;·&nbsp; linear';
+  drawSpectrum();
+});
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+buildSliders();
+updateScore();
+let rzTimer;
+window.addEventListener('resize', () => { clearTimeout(rzTimer); rzTimer = setTimeout(draw, 80); });
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>
