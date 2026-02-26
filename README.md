@@ -12,12 +12,12 @@
 [Fourier Game Widget](https://originalguru.github.io/acoustics-widgets/fourier_game_widget.html)
 
 ## Light/Dark Themed
-[Constructive Waveform](https://originalguru.github.io/acoustics-widgets/constructive_waveform_themed.html)
+[Constructive Waveform Themed](https://originalguru.github.io/acoustics-widgets/constructive_waveform_themed.html)
 
 [Fourier Spectrum Themed](https://originalguru.github.io/acoustics-widgets/fourier_widget_themed.html)
 
-[ADSR](https://originalguru.github.io/acoustics-widgets/adsr_themed.html)
+[ADSR Themed](https://originalguru.github.io/acoustics-widgets/adsr_themed.html)
 
-[AM/FM](https://originalguru.github.io/acoustics-widgets/modulation_widget_themed_fixed.html)
+[AM/FM Themed](https://originalguru.github.io/acoustics-widgets/modulation_widget_themed_fixed.html)
 
-[Fourier Game Widget](https://originalguru.github.io/acoustics-widgets/fourier_game_themed.html)
+[Fourier Game Widget Themed](https://originalguru.github.io/acoustics-widgets/fourier_game_themed.html)
