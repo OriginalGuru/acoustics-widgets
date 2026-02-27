@@ -84,14 +84,15 @@
   }
   .status-bar b { color: var(--text); font-weight: 500; }
 
-  /* ── MAIN 2-COLUMN LAYOUT ── */
+  /* ── MAIN 3-COLUMN LAYOUT ── */
   .main-cols {
     display: grid;
-    grid-template-columns: 210px 1fr;
+    grid-template-columns: 180px 1fr 1fr;
     gap: 12px;
     align-items: start;
   }
-  @media (max-width: 720px) { .main-cols { grid-template-columns: 1fr; } }
+  @media (max-width: 860px) { .main-cols { grid-template-columns: 180px 1fr; } }
+  @media (max-width: 600px) { .main-cols { grid-template-columns: 1fr; } }
 
   /* ── PANELS ── */
   .panel {
@@ -140,7 +141,6 @@
   .db-toggle.active { border-color: var(--accent2); color: var(--accent2); background: rgba(79,195,247,0.08); }
 
   canvas { width: 100%; display: block; border-radius: 3px; }
-  .right-col { display: flex; flex-direction: column; gap: 12px; }
 
   /* ── THEME TOGGLE ── */
   .theme-toggle {
@@ -181,37 +181,28 @@
   <!-- MAIN 2-COLUMN -->
   <div class="main-cols">
 
-    <!-- LEFT COLUMN: selector + spectrum -->
-    <div style="display:flex; flex-direction:column; gap:12px;">
-
-      <div class="panel">
-        <div class="panel-title">Harmonic components</div>
-        <div class="h-list" id="h-list"></div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-header">
-          <div class="panel-title" id="spec-title">Spectrum &nbsp;·&nbsp; linear</div>
-          <button class="db-toggle" id="db-toggle">dB</button>
-        </div>
-        <canvas id="spec-canvas" height="200"></canvas>
-      </div>
-
+    <!-- LEFT COLUMN: harmonic selector -->
+    <div class="panel">
+      <div class="panel-title">Harmonic components</div>
+      <div class="h-list" id="h-list"></div>
     </div>
 
-    <!-- RIGHT COLUMN: sum trace (top) + stacked components (below) -->
-    <div class="right-col">
-
-      <div class="panel">
-        <div class="panel-title">Sum of active components &nbsp;·&nbsp; time domain</div>
-        <canvas id="sum-canvas" height="110"></canvas>
+    <!-- MIDDLE COLUMN: spectrum -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title" id="spec-title">Spectrum &nbsp;·&nbsp; linear</div>
+        <button class="db-toggle" id="db-toggle">dB</button>
       </div>
+      <canvas id="spec-canvas" height="320"></canvas>
+    </div>
 
-      <div class="panel">
-        <div class="panel-title">Individual components &nbsp;·&nbsp; time domain</div>
-        <canvas id="wave-canvas" height="360"></canvas>
-      </div>
-
+    <!-- RIGHT COLUMN: sum + individual components in one panel -->
+    <div class="panel">
+      <div class="panel-title">Sum &nbsp;·&nbsp; time domain</div>
+      <canvas id="sum-canvas" height="90"></canvas>
+      <div style="border-top: 1px solid var(--border); margin: 4px 0;"></div>
+      <div class="panel-title">Individual components &nbsp;·&nbsp; time domain</div>
+      <canvas id="wave-canvas" height="200"></canvas>
     </div>
   </div>
 </div>
@@ -307,7 +298,7 @@ function resizeCanvas(canvas) {
 function drawSum() {
   const { ctx, W, H } = resizeCanvas(document.getElementById('sum-canvas'));
   ctx.clearRect(0, 0, W, H);
-  const pL=44, pR=10, pT=10, pB=20, iW=W-pL-pR, iH=H-pT-pB, midY=pT+iH/2;
+  const pL=44, pR=10, pT=10, pB=18, iW=W-pL-pR, iH=H-pT-pB, midY=pT+iH/2;
 
   ctx.strokeStyle = cssVar('--c-zero'); ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(pL, midY); ctx.lineTo(pL+iW, midY); ctx.stroke();
