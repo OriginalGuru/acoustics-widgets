@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Harmonic Series Explorer — A3</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg:      #0f1117;
+    --surface: #181c27;
+    --border:  #2a2f3f;
+    --text:    #e4e8f0;
+    --muted:   #7a8099;
+    --accent:  #f0c040;
+    --accent2: #4fc3f7;
+    --btn-bg:  #1e2435;
+    --c-zero:      rgba(255,255,255,0.07);
+    --c-axis:      rgba(255,255,255,0.10);
+    --c-axis-lbl:  rgba(122,128,153,0.70);
+    --c-freq-on:   rgba(228,232,240,0.60);
+    --c-freq-off:  rgba(122,128,153,0.28);
+    --c-sum:       #f0c040;
+    --c-play-text: #0f1117;
+    --c-slot-bg:   rgba(255,255,255,0.025);
+  }
+  [data-theme="light"] {
+    --bg:      #f5f6fa;
+    --surface: #ffffff;
+    --border:  #d0d5e8;
+    --text:    #1a1d2e;
+    --muted:   #6b7280;
+    --accent:  #c97e00;
+    --accent2: #0077aa;
+    --btn-bg:  #edf0f7;
+    --c-zero:      rgba(0,0,0,0.08);
+    --c-axis:      rgba(0,0,0,0.12);
+    --c-axis-lbl:  rgba(80,90,120,0.75);
+    --c-freq-on:   rgba(30,35,60,0.65);
+    --c-freq-off:  rgba(80,90,120,0.30);
+    --c-sum:       #c97e00;
+    --c-play-text: #ffffff;
+    --c-slot-bg:   rgba(0,0,0,0.025);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'DM Sans', sans-serif; font-size: 14px;
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; padding: 20px 14px 48px;
+  }
+  h1 {
+    font-family: 'DM Mono', monospace; font-size: 1.05rem; font-weight: 400;
+    letter-spacing: 0.12em; color: var(--accent); text-transform: uppercase; margin-bottom: 3px;
+  }
+  .subtitle { color: var(--muted); font-size: 0.78rem; letter-spacing: 0.06em; margin-bottom: 18px; text-align: center; }
+  .shell { width: 100%; max-width: 1160px; display: flex; flex-direction: column; gap: 12px; }
+
+  /* ── TOP BAR ── */
+  .top-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .play-btn {
+    padding: 10px 0; width: 136px; text-align: center; border-radius: 8px; border: none;
+    background: var(--accent); color: var(--c-play-text);
+    font-family: 'DM Mono', monospace; font-size: 0.76rem; font-weight: 500;
+    letter-spacing: 0.1em; cursor: pointer; text-transform: uppercase;
+    transition: opacity 0.14s, transform 0.1s; flex-shrink: 0;
+  }
+  .play-btn:hover { opacity: 0.86; } .play-btn:active { transform: scale(0.97); }
+  .play-btn.playing { background: #ef4444; color: #fff; }
+  .reset-btn {
+    padding: 10px 16px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--btn-bg); color: var(--muted); font-family: 'DM Mono', monospace;
+    font-size: 0.70rem; letter-spacing: 0.08em; cursor: pointer;
+    transition: border-color 0.14s, color 0.14s; flex-shrink: 0;
+  }
+  .reset-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .status-bar {
+    flex: 1; min-width: 180px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 14px; font-size: 0.66rem; color: var(--muted);
+    font-family: 'DM Mono', monospace; letter-spacing: 0.04em;
+    display: flex; gap: 14px; flex-wrap: wrap; align-items: center;
+  }
+  .status-bar b { color: var(--text); font-weight: 500; }
+
+  /* ── MAIN 2-COLUMN LAYOUT ── */
+  .main-cols {
+    display: grid;
+    grid-template-columns: 210px 1fr;
+    gap: 12px;
+    align-items: start;
+  }
+  @media (max-width: 720px) { .main-cols { grid-template-columns: 1fr; } }
+
+  /* ── PANELS ── */
+  .panel {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 14px 10px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .panel-title {
+    font-family: 'DM Mono', monospace; font-size: 0.60rem; letter-spacing: 0.14em;
+    color: var(--muted); text-transform: uppercase;
+  }
+  .panel-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .panel-header .panel-title { flex: 1; }
+
+  /* ── HARMONIC SELECTOR LIST ── */
+  .h-list { display: flex; flex-direction: column; gap: 1px; }
+  .h-row {
+    display: flex; align-items: center; gap: 7px;
+    padding: 3px 4px; border-radius: 4px; cursor: pointer;
+    transition: background 0.12s; user-select: none;
+  }
+  .h-row:hover { background: rgba(255,255,255,0.05); }
+  [data-theme="light"] .h-row:hover { background: rgba(0,0,0,0.04); }
+  .h-row.off { opacity: 0.30; }
+  .h-chk {
+    width: 13px; height: 13px; border-radius: 3px; flex-shrink: 0;
+    border: 1.5px solid var(--border); display: flex; align-items: center; justify-content: center;
+    font-size: 0.55rem; transition: background 0.12s, border-color 0.12s;
+  }
+  .h-row.on .h-chk { background: var(--accent); border-color: var(--accent); color: #1a1400; }
+  .h-label {
+    font-family: 'DM Mono', monospace; font-size: 0.66rem; font-weight: 500;
+    white-space: nowrap; min-width: 36px;
+  }
+  .h-hz {
+    font-family: 'DM Mono', monospace; font-size: 0.58rem; color: var(--muted); white-space: nowrap;
+  }
+
+  /* ── dB TOGGLE ── */
+  .db-toggle {
+    padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--btn-bg); color: var(--muted); font-family: 'DM Mono', monospace;
+    font-size: 0.60rem; letter-spacing: 0.08em; cursor: pointer; transition: all 0.14s; white-space: nowrap;
+  }
+  .db-toggle:hover { border-color: var(--accent2); color: var(--accent2); }
+  .db-toggle.active { border-color: var(--accent2); color: var(--accent2); background: rgba(79,195,247,0.08); }
+
+  canvas { width: 100%; display: block; border-radius: 3px; }
+  .right-col { display: flex; flex-direction: column; gap: 12px; }
+
+  /* ── THEME TOGGLE ── */
+  .theme-toggle {
+    position: fixed; top: 14px; right: 16px; z-index: 100;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
+    padding: 5px 12px 5px 9px; display: flex; align-items: center; gap: 6px;
+    cursor: pointer; font-family: 'DM Mono', monospace; font-size: 0.62rem;
+    color: var(--muted); letter-spacing: 0.06em; transition: border-color 0.15s, color 0.15s;
+    user-select: none; box-shadow: 0 1px 4px rgba(0,0,0,0.18);
+  }
+  .theme-toggle:hover { border-color: var(--accent); color: var(--text); }
+  .theme-toggle .tog-icon { font-size: 0.9rem; line-height: 1; }
+</style>
+</head>
+<body>
+
+<button class="theme-toggle" id="theme-toggle">
+  <span class="tog-icon" id="tog-icon">☀️</span>
+  <span id="tog-label">Light</span>
+</button>
+
+<h1>Harmonic Series Explorer</h1>
+<p class="subtitle">A3 = 220 Hz &nbsp;·&nbsp; Sawtooth wave &nbsp;·&nbsp; Toggle harmonics to reshape the series</p>
+
+<div class="shell">
+
+  <!-- TOP BAR -->
+  <div class="top-bar">
+    <button class="play-btn" id="play-btn">▶ &nbsp;Play</button>
+    <button class="reset-btn" id="reset-btn">↺ &nbsp;Reset to sawtooth</button>
+    <div class="status-bar">
+      Active: <b id="st-count">15 / 15</b>
+      &nbsp;·&nbsp; Lowest: <b id="st-lowest">n=1 &nbsp;220 Hz</b>
+      &nbsp;·&nbsp; Spacing: <b id="st-spacing">220 Hz</b>
+    </div>
+  </div>
+
+  <!-- MAIN 2-COLUMN -->
+  <div class="main-cols">
+
+    <!-- LEFT COLUMN: selector + spectrum -->
+    <div style="display:flex; flex-direction:column; gap:12px;">
+
+      <div class="panel">
+        <div class="panel-title">Harmonic components</div>
+        <div class="h-list" id="h-list"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title" id="spec-title">Spectrum &nbsp;·&nbsp; linear</div>
+          <button class="db-toggle" id="db-toggle">dB</button>
+        </div>
+        <canvas id="spec-canvas" height="200"></canvas>
+      </div>
+
+    </div>
+
+    <!-- RIGHT COLUMN: sum trace (top) + stacked components (below) -->
+    <div class="right-col">
+
+      <div class="panel">
+        <div class="panel-title">Sum of active components &nbsp;·&nbsp; time domain</div>
+        <canvas id="sum-canvas" height="110"></canvas>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">Individual components &nbsp;·&nbsp; time domain</div>
+        <canvas id="wave-canvas" height="360"></canvas>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Theme ─────────────────────────────────────────────────────────────────────
+function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+let isDark = true;
+document.getElementById('theme-toggle').addEventListener('click', () => {
+  isDark = !isDark;
+  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  document.getElementById('tog-icon').textContent  = isDark ? '☀️' : '🌙';
+  document.getElementById('tog-label').textContent = isDark ? 'Light' : 'Dark';
+  draw();
+});
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+const F0          = 220;
+const N_HARM      = 15;
+const SAMPLE_RATE = 44100;
+const PLAY_DUR    = 2.5;
+const SHOW_CYCLES = 3.5;
+const DB_FLOOR    = -60;
+
+const H_COLORS = [
+  '#f87171','#fb923c','#fbbf24','#a3e635','#34d399',
+  '#22d3ee','#60a5fa','#818cf8','#c084fc','#f472b6',
+  '#fb7185','#38bdf8','#4ade80','#facc15','#a8a29e'
+];
+
+// ── State ─────────────────────────────────────────────────────────────────────
+const active   = new Array(N_HARM).fill(true);
+let specDb     = false;
+let audioCtx   = null;
+let toneSource = null;
+let isPlaying  = false;
+
+function gcd(a, b) { return b === 0 ? a : gcd(b, a % b); }
+
+// ── Build selector list ───────────────────────────────────────────────────────
+(function buildList() {
+  const list = document.getElementById('h-list');
+  for (let i = 0; i < N_HARM; i++) {
+    const n    = i + 1;
+    const freq = n * F0;
+    const row  = document.createElement('div');
+    row.className = 'h-row on';
+    row.id = `row-${i}`;
+    row.innerHTML =
+      `<div class="h-chk" id="chk-${i}">✓</div>` +
+      `<span class="h-label" style="color:${H_COLORS[i]}">n=${n}</span>` +
+      `<span class="h-hz">${freq >= 1000 ? (freq/1000).toFixed(2)+'k' : freq} Hz</span>`;
+    row.addEventListener('click', () => toggleH(i));
+    list.appendChild(row);
+  }
+})();
+
+function toggleH(i) {
+  active[i] = !active[i];
+  document.getElementById(`row-${i}`).className = 'h-row ' + (active[i] ? 'on' : 'off');
+  document.getElementById(`chk-${i}`).textContent = active[i] ? '✓' : '';
+  updateStatus(); draw();
+}
+
+function updateStatus() {
+  const count = active.filter(Boolean).length;
+  document.getElementById('st-count').textContent = `${count} / ${N_HARM}`;
+  if (count === 0) {
+    document.getElementById('st-lowest').textContent  = '—';
+    document.getElementById('st-spacing').textContent = '—';
+    return;
+  }
+  const ns = active.map((a, i) => a ? i + 1 : null).filter(Boolean);
+  const lo = ns[0];
+  const g  = ns.reduce(gcd);
+  document.getElementById('st-lowest').textContent  = `n=${lo}\u00a0\u00a0${lo * F0} Hz`;
+  document.getElementById('st-spacing').textContent = `${g * F0} Hz`;
+}
+
+// ── Canvas resize helper ──────────────────────────────────────────────────────
+function resizeCanvas(canvas) {
+  const dpr  = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  const cw   = Math.round(rect.width  * dpr);
+  const ch   = Math.round(rect.height * dpr);
+  if (canvas.width !== cw || canvas.height !== ch) { canvas.width = cw; canvas.height = ch; }
+  const ctx  = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, W: rect.width, H: rect.height };
+}
+
+// ── Draw: sum waveform ────────────────────────────────────────────────────────
+function drawSum() {
+  const { ctx, W, H } = resizeCanvas(document.getElementById('sum-canvas'));
+  ctx.clearRect(0, 0, W, H);
+  const pL=44, pR=10, pT=10, pB=20, iW=W-pL-pR, iH=H-pT-pB, midY=pT+iH/2;
+
+  ctx.strokeStyle = cssVar('--c-zero'); ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pL, midY); ctx.lineTo(pL+iW, midY); ctx.stroke();
+  ctx.strokeStyle = cssVar('--c-axis'); ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pL,pT); ctx.lineTo(pL,pT+iH); ctx.lineTo(pL+iW,pT+iH); ctx.stroke();
+
+  const tEnd = SHOW_CYCLES / F0, NP = 1000;
+  const samps = new Float32Array(NP + 1);
+  let maxAbs = 0;
+  for (let xi = 0; xi <= NP; xi++) {
+    const t = (xi/NP)*tEnd; let v = 0;
+    for (let i = 0; i < N_HARM; i++) if (active[i]) v += (1/(i+1)) * Math.sin(2*Math.PI*(i+1)*F0*t);
+    samps[xi] = v; if (Math.abs(v) > maxAbs) maxAbs = Math.abs(v);
+  }
+  if (maxAbs < 1e-6) return;
+
+  ctx.strokeStyle = cssVar('--c-sum'); ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let xi = 0; xi <= NP; xi++) {
+    const x = pL + (xi/NP)*iW;
+    const y = midY - (samps[xi]/maxAbs)*(iH*0.44);
+    xi === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  ctx.save(); ctx.fillStyle = cssVar('--c-axis-lbl'); ctx.font = "9px 'DM Mono',monospace";
+  ctx.textAlign = 'center'; ctx.translate(12, pT+iH/2); ctx.rotate(-Math.PI/2);
+  ctx.fillText('normalised', 0, 0); ctx.restore();
+  ctx.fillStyle = cssVar('--c-axis-lbl'); ctx.font = "8px 'DM Mono',monospace"; ctx.textAlign = 'center';
+  ctx.fillText(`${SHOW_CYCLES} cycles of f₁ = ${F0} Hz`, pL+iW/2, pT+iH+14);
+}
+
+// ── Draw: individual components (stacked lanes) ───────────────────────────────
+function drawComponents() {
+  const { ctx, W, H } = resizeCanvas(document.getElementById('wave-canvas'));
+  ctx.clearRect(0, 0, W, H);
+  const pL=44, pR=10, pT=6, pB=16, iW=W-pL-pR, iH=H-pT-pB;
+  const laneH     = iH / N_HARM;
+  const baseScale = laneH * 0.38;
+  const tEnd = SHOW_CYCLES / F0, NP = 600;
+
+  for (let i = 0; i < N_HARM; i++) {
+    const n       = i + 1;
+    const laneTop = pT + i * laneH;
+    const midY    = laneTop + laneH / 2;
+
+    if (i > 0) {
+      ctx.strokeStyle = cssVar('--c-zero'); ctx.lineWidth = 0.5;
+      ctx.beginPath(); ctx.moveTo(pL, laneTop); ctx.lineTo(pL+iW, laneTop); ctx.stroke();
+    }
+    ctx.strokeStyle = cssVar('--c-zero'); ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.moveTo(pL, midY); ctx.lineTo(pL+iW, midY); ctx.stroke();
+
+    ctx.fillStyle = active[i] ? H_COLORS[i] : cssVar('--c-freq-off');
+    ctx.font = "8px 'DM Mono',monospace"; ctx.textAlign = 'right';
+    ctx.fillText(`n${n}`, pL - 4, midY + 3);
+
+    if (!active[i]) continue;
+
+    const a = 1.0 / n;
+    ctx.strokeStyle = H_COLORS[i]; ctx.lineWidth = 1.4; ctx.globalAlpha = 0.90;
+    ctx.beginPath();
+    for (let xi = 0; xi <= NP; xi++) {
+      const t = (xi/NP)*tEnd;
+      const y = midY - a * baseScale * Math.sin(2*Math.PI*n*F0*t);
+      xi === 0 ? ctx.moveTo(pL + xi/NP*iW, y) : ctx.lineTo(pL + xi/NP*iW, y);
+    }
+    ctx.stroke(); ctx.globalAlpha = 1;
+  }
+
+  ctx.strokeStyle = cssVar('--c-axis'); ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pL, pT); ctx.lineTo(pL, pT+iH); ctx.stroke();
+  ctx.fillStyle = cssVar('--c-axis-lbl'); ctx.font = "8px 'DM Mono',monospace"; ctx.textAlign = 'center';
+  ctx.fillText(`${SHOW_CYCLES} cycles of f₁ = ${F0} Hz`, pL+iW/2, H-3);
+}
+
+// ── Draw: spectrum ────────────────────────────────────────────────────────────
+function drawSpectrum() {
+  const { ctx, W, H } = resizeCanvas(document.getElementById('spec-canvas'));
+  ctx.clearRect(0, 0, W, H);
+  const pL=46, pR=10, pT=14, pB=34, iW=W-pL-pR, iH=H-pT-pB;
+
+  ctx.strokeStyle = cssVar('--c-axis'); ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pL,pT); ctx.lineTo(pL,pT+iH); ctx.lineTo(pL+iW,pT+iH); ctx.stroke();
+
+  const slotW = iW / N_HARM, barW = slotW * 0.62;
+
+  for (let i = 0; i < N_HARM; i++) {
+    const n = i+1, col = H_COLORS[i], rawA = 1.0/n, freq = n*F0;
+    const cx = pL + i*slotW + slotW/2;
+
+    if (active[i]) {
+      let barH;
+      if (specDb) {
+        const db = Math.max(20*Math.log10(rawA), DB_FLOOR);
+        barH = Math.max((1 - db/DB_FLOOR)*iH, 2);
+      } else {
+        barH = rawA * iH;
+      }
+      const y = pT + iH - barH;
+      const gr = ctx.createLinearGradient(0, y, 0, pT+iH);
+      gr.addColorStop(0, col); gr.addColorStop(1, col+'28');
+      ctx.fillStyle = gr; ctx.fillRect(cx-barW/2, y, barW, barH);
+      ctx.fillStyle = col; ctx.fillRect(cx-barW/2, y, barW, 2);
+      ctx.fillStyle = col; ctx.font = "8px 'DM Mono',monospace"; ctx.textAlign = 'center';
+      const lbl = specDb ? (Math.max(20*Math.log10(rawA),DB_FLOOR).toFixed(0)+'dB') : rawA.toFixed(2);
+      ctx.fillText(lbl, cx, Math.max(y-3, pT+9));
+    } else {
+      ctx.fillStyle = cssVar('--c-slot-bg');
+      ctx.fillRect(cx-barW/2, pT, barW, iH);
+    }
+
+    ctx.fillStyle = active[i] ? col : cssVar('--c-freq-off');
+    ctx.font = "8px 'DM Mono',monospace"; ctx.textAlign = 'center';
+    ctx.fillText(`n${n}`, cx, pT+iH+11);
+    ctx.fillStyle = active[i] ? cssVar('--c-freq-on') : cssVar('--c-freq-off');
+    ctx.font = "7px 'DM Mono',monospace";
+    ctx.fillText(freq >= 1000 ? (freq/1000).toFixed(1)+'k' : freq+'', cx, pT+iH+21);
+  }
+
+  ctx.fillStyle = cssVar('--c-axis-lbl'); ctx.font = "8px 'DM Mono',monospace"; ctx.textAlign = 'right';
+  if (specDb) {
+    ctx.fillText('0dB', pL-3, pT+6); ctx.fillText('-20', pL-3, pT+iH*(20/60)+4);
+    ctx.fillText('-40', pL-3, pT+iH*(40/60)+4); ctx.fillText('-60', pL-3, pT+iH+4);
+  } else {
+    ctx.fillText('1', pL-3, pT+6); ctx.fillText('0.5', pL-3, pT+iH*0.5+4); ctx.fillText('0', pL-3, pT+iH+4);
+  }
+  ctx.save(); ctx.fillStyle = cssVar('--c-axis-lbl'); ctx.font = "9px 'DM Mono',monospace";
+  ctx.textAlign = 'center'; ctx.translate(12, pT+iH/2); ctx.rotate(-Math.PI/2);
+  ctx.fillText(specDb ? 'dB (re. n=1)' : 'amplitude (1/n)', 0, 0); ctx.restore();
+}
+
+function draw() { drawSum(); drawComponents(); drawSpectrum(); }
+
+// ── Audio ─────────────────────────────────────────────────────────────────────
+function getAC() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SAMPLE_RATE });
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function buildBuffer() {
+  const nS = Math.ceil(PLAY_DUR * SAMPLE_RATE), buf = new Float32Array(nS);
+  for (let s = 0; s < nS; s++) {
+    const t = s/SAMPLE_RATE; let v = 0;
+    for (let i = 0; i < N_HARM; i++) if (active[i]) v += (1/(i+1))*Math.sin(2*Math.PI*(i+1)*F0*t);
+    buf[s] = v;
+  }
+  let sq = 0; for (let s = 0; s < nS; s++) sq += buf[s]*buf[s];
+  const rms = Math.sqrt(sq/nS); if (rms < 1e-9) return null;
+  const g = 0.25/rms; for (let s = 0; s < nS; s++) buf[s] *= g;
+  const fl = Math.min(2200, Math.floor(nS*0.05));
+  for (let i = 0; i < fl; i++) { const w = 0.5*(1-Math.cos(Math.PI*i/fl)); buf[i]*=w; buf[nS-1-i]*=w; }
+  return buf;
+}
+function stopPlayback() {
+  if (toneSource) { try { toneSource.stop(); } catch(e){} toneSource = null; }
+  isPlaying = false;
+  const btn = document.getElementById('play-btn');
+  btn.innerHTML = '▶ &nbsp;Play'; btn.classList.remove('playing');
+}
+document.getElementById('play-btn').addEventListener('click', () => {
+  if (isPlaying) { stopPlayback(); return; }
+  const sig = buildBuffer(); if (!sig) return;
+  const ac = getAC(), ab = ac.createBuffer(1, sig.length, SAMPLE_RATE);
+  ab.copyToChannel(sig, 0);
+  const src = ac.createBufferSource(); src.buffer = ab; src.connect(ac.destination); src.start();
+  src.onended = stopPlayback;
+  toneSource = src; isPlaying = true;
+  const btn = document.getElementById('play-btn');
+  btn.innerHTML = '■ &nbsp;Stop'; btn.classList.add('playing');
+});
+
+// ── Reset ─────────────────────────────────────────────────────────────────────
+document.getElementById('reset-btn').addEventListener('click', () => {
+  stopPlayback();
+  for (let i = 0; i < N_HARM; i++) {
+    active[i] = true;
+    document.getElementById(`row-${i}`).className = 'h-row on';
+    document.getElementById(`chk-${i}`).textContent = '✓';
+  }
+  updateStatus(); draw();
+});
+
+// ── dB toggle ─────────────────────────────────────────────────────────────────
+document.getElementById('db-toggle').addEventListener('click', () => {
+  specDb = !specDb;
+  const btn = document.getElementById('db-toggle');
+  btn.textContent = specDb ? 'Linear' : 'dB'; btn.classList.toggle('active', specDb);
+  document.getElementById('spec-title').textContent = specDb ? 'Spectrum · dB (re. n=1)' : 'Spectrum · linear';
+  drawSpectrum();
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+updateStatus();
+let rzTimer;
+window.addEventListener('resize', () => { clearTimeout(rzTimer); rzTimer = setTimeout(draw, 80); });
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>
