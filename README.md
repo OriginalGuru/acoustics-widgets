@@ -21,3 +21,5 @@
 [AM/FM Themed](https://originalguru.github.io/acoustics-widgets/modulation_widget_themed_fixed.html)
 
 [Fourier Game Widget Themed](https://originalguru.github.io/acoustics-widgets/fourier_game_themed.html)
+
+[Harmonic Series -- Sawtooth](https://originalguru.github.io/acoustics-widgets/harmonic_series_explorer.html)
