@@ -13,4 +13,4 @@
 
 [Harmonic Series -- Sawtooth](https://originalguru.github.io/acoustics-widgets/harmonic_series_explorer.html)
 
-[Natural Modes -- Bar and Membrane](https://originalguru.github.io/acoustics-widgets/natural_modes_explorer_8.html)
+[Natural Modes -- Bar and Membrane](https://originalguru.github.io/acoustics-widgets/natural_modes_explorer_10.html)
