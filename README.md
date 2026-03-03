@@ -1,16 +1,5 @@
 # acoustics-widgets
 
-## Basic versions
-[Constructive Waveform](https://originalguru.github.io/acoustics-widgets/constructive_waveform_widget.html)
-
-[Fourier Spectrum](https://originalguru.github.io/acoustics-widgets/fourier_widget_v3_fixed.html)
-
-[ADSR](https://originalguru.github.io/acoustics-widgets/adsr_widget_v2.html)
-
-[AM/FM](https://originalguru.github.io/acoustics-widgets/modulation_widget.html)
-
-[Fourier Game Widget](https://originalguru.github.io/acoustics-widgets/fourier_game_widget.html)
-
 ## Light/Dark Themed
 [Constructive Waveform Themed](https://originalguru.github.io/acoustics-widgets/constructive_waveform_themed.html)
 
@@ -23,3 +12,5 @@
 [Fourier Game Widget Themed](https://originalguru.github.io/acoustics-widgets/fourier_game_themed.html)
 
 [Harmonic Series -- Sawtooth](https://originalguru.github.io/acoustics-widgets/harmonic_series_explorer.html)
+
+[Natural Modes -- Bar and Membrane](https://originalguru.github.io/acoustics-widgets/natureal_mode_explorer_7.html)
