@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Natural Modes Explorer — Ch. 9</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
+  :root {
+    --bg:#0f1117; --surface:#181c27; --border:#2a2f3f; --text:#e4e8f0;
+    --muted:#7a8099; --accent:#f0c040; --accent2:#4fc3f7; --btn-bg:#1e2435;
+    --panel-r:12px; --node-col:#f87171;
+  }
+  [data-theme="light"] {
+    --bg:#f5f6fa; --surface:#ffffff; --border:#d0d5e8; --text:#1a1d2e;
+    --muted:#6b7280; --accent:#c97e00; --accent2:#0077aa; --btn-bg:#edf0f7;
+    --node-col:#dc2626;
+  }
+  *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+  body {
+    background:var(--bg); color:var(--text);
+    font-family:'DM Sans',sans-serif; font-size:14px;
+    min-height:100vh; display:flex; flex-direction:column;
+    align-items:center; padding:20px 14px 60px;
+  }
+  h1 {
+    font-family:'DM Mono',monospace; font-size:1.05rem; font-weight:400;
+    letter-spacing:.12em; color:var(--accent); text-transform:uppercase; margin-bottom:3px;
+  }
+  .subtitle { color:var(--muted); font-size:.78rem; letter-spacing:.06em; margin-bottom:14px; text-align:center; }
+  .shell { width:100%; max-width:1200px; display:flex; flex-direction:column; gap:10px; }
+
+  /* top controls panel */
+  .top-panel { background:var(--surface); border:1px solid var(--border); border-radius:var(--panel-r); padding:12px 16px; display:flex; flex-direction:column; gap:10px; }
+  .ctrl-row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .tab-group { display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+  .tab-btn { padding:8px 20px; background:var(--btn-bg); color:var(--muted); font-family:'DM Mono',monospace; font-size:.70rem; letter-spacing:.08em; border:none; cursor:pointer; transition:background .14s,color .14s; text-transform:uppercase; }
+  .tab-btn.active { background:var(--accent); color:#0f1117; font-weight:500; }
+  .theme-btn { padding:8px 13px; border-radius:8px; border:1px solid var(--border); background:var(--btn-bg); color:var(--muted); font-family:'DM Mono',monospace; font-size:.70rem; cursor:pointer; margin-left:auto; }
+  .theme-btn:hover { border-color:var(--accent); color:var(--accent); }
+  .play-btn { padding:8px 20px; border-radius:7px; border:none; background:var(--accent); color:#0f1117; font-family:'DM Mono',monospace; font-size:.70rem; font-weight:500; letter-spacing:.08em; cursor:pointer; text-transform:uppercase; flex-shrink:0; white-space:nowrap; min-width:110px; text-align:center; }
+  .play-btn:hover { opacity:.82; }
+  .play-btn.sounding { background:#f87171; color:#fff; }
+  .slider-row { display:flex; flex-direction:column; gap:2px; min-width:120px; flex:1; }
+  .slider-label { font-family:'DM Mono',monospace; font-size:.60rem; color:var(--muted); display:flex; justify-content:space-between; }
+  input[type=range] { width:100%; accent-color:var(--accent); cursor:pointer; }
+
+  /* 3-column main layout */
+  .three-col { display:grid; grid-template-columns:150px 1fr 200px; gap:10px; align-items:start; }
+  @media(max-width:860px) { .three-col { grid-template-columns:120px 1fr 170px; } }
+  @media(max-width:620px) { .three-col { grid-template-columns:1fr; } }
+
+  .panel { background:var(--surface); border:1px solid var(--border); border-radius:var(--panel-r); padding:12px 14px; }
+  .panel-label { font-family:'DM Mono',monospace; font-size:.62rem; letter-spacing:.10em; color:var(--muted); text-transform:uppercase; margin-bottom:8px; }
+
+  canvas { display:block; border-radius:5px; }
+  .canvas-hint { font-size:.63rem; color:var(--muted); margin-top:5px; font-family:'DM Mono',monospace; }
+
+  /* left column: mode list */
+  .mode-list { display:flex; flex-direction:column; }
+  .mode-item { display:flex; align-items:center; gap:5px; padding:0 6px; font-family:'DM Mono',monospace; font-size:.64rem; color:var(--muted); border-bottom:1px solid var(--border); }
+  .mode-item:last-child { border-bottom:none; }
+  .mname { font-weight:600; flex-shrink:0; }
+  .mfreq { font-size:.55rem; color:var(--accent2); flex:1; text-align:right; white-space:nowrap; padding-right:4px; }
+  .mhz   { font-size:.55rem; color:var(--muted);   flex-shrink:0; white-space:nowrap; padding-right:4px; }
+  .mplay { flex-shrink:0; width:18px; height:18px; border-radius:3px; border:1px solid var(--border); background:var(--btn-bg); color:var(--muted); font-size:9px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:border-color .12s,color .12s; padding:0; line-height:1; }
+  .mplay:hover { border-color:var(--accent); color:var(--accent); }
+  .mplay.sounding { border-color:#f87171; color:#f87171; background:rgba(248,113,113,.10); }
+  /* drum mode list: two-line layout to fit (m,n) label + freqs + play button */
+  .mode-item.drum-item { flex-wrap:wrap; padding:4px 6px; align-items:center; }
+  .drum-item .mname { min-width:36px; }
+  .drum-item .minfo { display:flex; flex-direction:column; flex:1; min-width:0; overflow:hidden; }
+  .drum-item .mfreq { text-align:left; padding-right:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .drum-item .mhz   { padding-right:0; }
+
+  /* right column: recipe */
+  .recipe-row { display:flex; align-items:center; gap:4px; margin-bottom:3px; }
+  .recipe-label { font-family:'DM Mono',monospace; font-size:.57rem; color:var(--muted); width:42px; flex-shrink:0; white-space:nowrap; }
+  .recipe-bar-wrap { flex:1; height:6px; background:var(--btn-bg); border-radius:3px; overflow:hidden; }
+  .recipe-bar-fill { height:100%; border-radius:3px; transition:width .12s ease; }
+  .recipe-val { font-family:'DM Mono',monospace; font-size:.57rem; color:var(--muted); width:26px; text-align:right; flex-shrink:0; }
+  .info-note { font-size:.62rem; font-family:'DM Mono',monospace; color:var(--muted); margin-top:6px; line-height:1.5; }
+  .divider { height:1px; background:var(--border); margin:6px 0; }
+  .info-row { display:flex; justify-content:space-between; align-items:baseline; gap:4px; margin-bottom:4px; }
+  .info-key { font-family:'DM Mono',monospace; font-size:.62rem; color:var(--muted); }
+  .info-val { font-family:'DM Mono',monospace; font-size:.66rem; color:var(--accent); }
+  /* τ readout on recipe rows */
+  .recipe-tau { font-family:'DM Mono',monospace; font-size:.52rem; color:var(--accent2); width:38px; text-align:right; flex-shrink:0; }
+  /* decay visualizer */
+  .decay-label { font-family:'DM Mono',monospace; font-size:.62rem; letter-spacing:.08em; color:var(--muted); text-transform:uppercase; margin-bottom:4px; display:flex; justify-content:space-between; align-items:baseline; }
+  .decay-hint  { font-size:.55rem; color:var(--muted); font-family:'DM Mono',monospace; margin-top:3px; }
+  #bar-decay-canvas, #drum-decay-canvas { display:block; border-radius:4px; cursor:ew-resize; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div style="text-align:center;margin-bottom:2px;">
+    <h1>Natural Modes Explorer</h1>
+    <div class="subtitle">Ch. 9 — Percussion Instruments &amp; Natural Modes</div>
+  </div>
+
+  <!-- TOP PANEL: row 1 = tabs + theme | row 2 = play + sliders -->
+  <div class="top-panel">
+    <div class="ctrl-row">
+      <div class="tab-group">
+        <button class="tab-btn active" onclick="switchTab('bar',this)">Free Bar</button>
+        <button class="tab-btn" onclick="switchTab('drum',this)">Circular Membrane</button>
+      </div>
+      <button class="theme-btn" onclick="toggleTheme()">☀ / ☾</button>
+    </div>
+    <div class="ctrl-row">
+      <button class="play-btn" id="main-play-btn" onclick="togglePlay()">▶ Play all</button>
+      <div class="slider-row">
+        <div class="slider-label"><span>f₁</span><span id="f1-val">55 Hz</span></div>
+        <input type="range" id="f1-slider" min="20" max="2000" step="5" value="55" oninput="onSliders()">
+      </div>
+      <div class="slider-row">
+        <div class="slider-label"><span>τ₁</span><span id="tau-val">0.5 s</span></div>
+        <input type="range" id="tau-slider" min="0.1" max="8" step="0.1" value="0.5" oninput="onSliders()">
+      </div>
+    </div>
+  </div>
+
+  <!-- BAR TAB -->
+  <div id="tab-bar" class="tab-content">
+    <div class="three-col">
+      <div class="panel" style="padding:12px 8px;">
+        <div class="panel-label">Modes</div>
+        <div class="mode-list" id="bar-mode-list"></div>
+      </div>
+      <div class="panel" style="padding:12px 12px 8px;">
+        <div class="panel-label">Mode shapes — drag to move strike</div>
+        <canvas id="bar-canvas"></canvas>
+        <div class="canvas-hint">Drag horizontally — <span style="color:var(--accent)">●</span> strike &nbsp;|&nbsp; <span style="color:var(--node-col)">●</span> nodes</div>
+        <div class="divider"></div>
+        <div class="decay-label"><span>Decay — dB vs time</span><span id="bar-clock-val" style="color:var(--accent);font-size:.58rem;">t = 0.00 s</span></div>
+        <canvas id="bar-decay-canvas"></canvas>
+        <div class="decay-hint">Drag to scrub time — recipe bars update to show surviving amplitudes</div>
+      </div>
+      <div class="panel">
+        <div class="panel-label">Vibration recipe</div>
+        <div class="info-row"><span class="info-key">Strike x/L</span><span class="info-val" id="bar-strike-x">0.500</span></div>
+        <div class="divider"></div>
+        <div id="bar-recipe"></div>
+        <div class="divider"></div>
+        <div class="info-note">
+          <strong>Amplitude</strong> = |φ<sub>n</sub>(x)| — the eigenfunction value at the strike point. Striking a node of mode n gives zero excitation of that mode.<br><br>
+          <strong>Decay</strong> τ<sub>n</sub> = τ₁ / ratio<sub>n</sub>² — internal (thermoelastic) damping scales as f², so overtones die away much faster than the fundamental. Mode 5 at 13.3f₁ decays ~177× faster than mode 1.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DRUM TAB -->
+  <div id="tab-drum" class="tab-content" style="display:none;">
+    <div class="three-col">
+      <div class="panel" style="padding:12px 8px;">
+        <div class="panel-label">Modes</div>
+        <div class="mode-list" id="drum-mode-list"></div>
+      </div>
+      <div class="panel" style="padding:12px 12px 8px;">
+        <div class="panel-label">Mode shapes — drag strike across all</div>
+        <canvas id="drum-canvas"></canvas>
+        <div class="canvas-hint">Drag freely — nodal lines follow the strike point &nbsp;|&nbsp; recipe bars stay constant as you drag azimuthally (total amplitude is angle-independent)</div>
+        <div class="divider"></div>
+        <div class="decay-label"><span>Decay — dB vs time</span><span id="drum-clock-val" style="color:var(--accent);font-size:.58rem;">t = 0.00 s</span></div>
+        <canvas id="drum-decay-canvas"></canvas>
+        <div class="decay-hint">Drag to scrub time — recipe bars update to show surviving amplitudes</div>
+      </div>
+      <div class="panel">
+        <div class="panel-label">Vibration recipe</div>
+        <div class="info-row"><span class="info-key">Strike r/R</span><span class="info-val" id="drum-strike-r">0.500</span></div>
+        <div class="info-note" id="drum-note"></div>
+        <div class="divider"></div>
+        <div id="drum-recipe"></div>
+        <div class="divider"></div>
+        <div class="info-note">
+          <strong>Amplitude</strong> = |J<sub>m</sub>(β<sub>mn</sub> r/R)| — the total energy deposited in mode (m,n) is J<sub>m</sub>²(β·r/R)·(cos²(mθ)+sin²(mθ)) = J<sub>m</sub>²(β·r/R). The angle-independent Pythagorean identity means dragging azimuthally rotates the pattern without changing the recipe. Moving r to a nodal ring of J<sub>m</sub> zeros that mode entirely.<br><br>
+          <strong>Decay</strong> τ<sub>n</sub> = τ₁ / ratio<sub>n</sub> — radiation-dominated damping scales as f (not f²), so overtones decay more gradually relative to the fundamental than in a bar. The inharmonic spectrum combined with this milder roll-off gives drums their characteristic pitch ambiguity.<br><br>
+          <strong>Beating</strong> — for m≥1 the two degenerate partners (cos and sin eigenfunctions) have slightly different frequencies on any real drum. A random split δf ~ 0.5–2.5 Hz is applied in synthesis, producing amplitude beating whose rate depends on drum imperfection.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ── Unicode symbols used as literal characters (no entity issues) ──
+const SYM_PLAY = '▶';
+const SYM_STOP = '◼';
+
+// ── Shared state ──────────────────────────────────────
+let _tab = 'bar';
+let _f1  = 55, _tau = 0.5;
+
+// ── Theme ─────────────────────────────────────────────
+let _theme = 'dark';
+function toggleTheme() {
+  _theme = _theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', _theme === 'light' ? 'light' : '');
+  drawBar(); drawDrum();
+}
+function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+// ── Sliders ───────────────────────────────────────────
+function onSliders() {
+  _f1  = +document.getElementById('f1-slider').value;
+  _tau = +document.getElementById('tau-slider').value;
+  document.getElementById('f1-val').textContent  = _f1 + ' Hz';
+  document.getElementById('tau-val').textContent = _tau.toFixed(1) + ' s';
+  updateModeHz();
+  const bAmps = barAmps(), bMax = Math.max(...bAmps, 1e-9);
+  drawDecay('bar-decay-canvas', BRATIOS, bAmps, bMax, _barClock, i => _tau / BRATIOS[i], true);
+  updateBarRecipe(bAmps, bMax);
+  const dAmps = drumAmps(), dMax = Math.max(...dAmps, 1e-9);
+  drawDecay('drum-decay-canvas', DMODES.map(m => m.fr), dAmps, dMax, _drumClock, i => _tau / DMODES[i].fr, false);
+  updateDrumRecipe();
+}
+
+function updateModeHz() {
+  BRATIOS.forEach((r, i) => {
+    const el = document.getElementById('bar-mhz-' + i);
+    if (el) el.textContent = Math.round(_f1 * r) + ' Hz';
+  });
+  DMODES.slice(0, 8).forEach((md, i) => {
+    const el = document.getElementById('drum-mhz-' + i);
+    if (el) el.textContent = Math.round(_f1 * md.fr) + ' Hz';
+  });
+}
+
+// ── Tabs ──────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).style.display = '';
+  btn.classList.add('active');
+  _tab = name;
+  stopAll();
+  if (name === 'bar')  { sizeBar();  drawBar();  }
+  if (name === 'drum') {
+    sizeDrum(); drawDrum();
+    sizeDecayCanvas('drum-decay-canvas');
+    const dAmps = drumAmps(), dMax = Math.max(...dAmps, 1e-9);
+    drawDecay('drum-decay-canvas', DMODES.map(m => m.fr), dAmps, dMax, _drumClock, i => _tau / DMODES[i].fr, false);
+  }
+}
+
+// ── Main play button ──────────────────────────────────
+let _mainSrc = null;
+function togglePlay() {
+  // Always stop current sound first, then restart — second press restarts
+  stopAll();
+  if (_tab === 'bar')  startBarPlay();
+  if (_tab === 'drum') startDrumPlay();
+}
+function setPlayBtn(playing) {
+  const btn = document.getElementById('main-play-btn');
+  if (playing) { btn.classList.add('sounding'); }
+  else         { btn.classList.remove('sounding'); }
+}
+function stopAll() {
+  _mainSrc = killSrc(_mainSrc);
+  setPlayBtn(false);
+  stopDecayAnim();
+}
+
+// ═══════════════════════════════════════════════════════
+// FREE-FREE BAR — Euler-Bernoulli eigenfunctions
+// cos(βL)cosh(βL) = 1
+// ═══════════════════════════════════════════════════════
+const BL      = [4.73004, 7.85320, 10.99561, 14.13717, 17.27876, 20.37130, 23.51945, 26.66605];
+const SIGMA   = BL.map(b => (Math.cosh(b) - Math.cos(b)) / (Math.sinh(b) - Math.sin(b)));
+const BRATIOS = BL.map(b => (b / BL[0]) ** 2);
+const BLABELS = ['f₁', '2.76f₁', '5.40f₁', '8.93f₁', '13.3f₁', '18.5f₁', '24.7f₁', '31.8f₁'];
+const MC      = ['#f0c040','#4fc3f7','#a78bfa','#f97316','#4ade80','#fb7185','#38bdf8','#e879f9'];
+
+function barPhi(xi, n) {
+  const b = BL[n], s = SIGMA[n];
+  return Math.cosh(b*xi) + Math.cos(b*xi) - s*(Math.sinh(b*xi) + Math.sin(b*xi));
+}
+const BNORM = BL.map((_, n) => {
+  let mx = 0;
+  for (let i = 0; i <= 800; i++) mx = Math.max(mx, Math.abs(barPhi(i/800, n)));
+  return mx || 1;
+});
+function bPhiN(xi, n) { return barPhi(xi, n) / BNORM[n]; }
+
+function findBarNodes(n) {
+  const pts = 4000, nodes = []; let prev = barPhi(0, n);
+  for (let i = 1; i <= pts; i++) {
+    const xi = i/pts, cur = barPhi(xi, n);
+    if (prev * cur < 0) {
+      let lo = (i-1)/pts, hi = xi;
+      for (let k = 0; k < 60; k++) { const m2=(lo+hi)/2; barPhi(m2,n)*barPhi(lo,n)<0?hi=m2:lo=m2; }
+      nodes.push((lo+hi)/2);
+    }
+    prev = cur;
+  }
+  return nodes;
+}
+const BNODES = BL.map((_, n) => findBarNodes(n));
+
+let barSX = 0.5;
+function barAmps() { return BL.map((_, i) => Math.abs(bPhiN(barSX, i))); }
+
+// Canvas layout constants
+const B_PL = 40, B_PR = 8, B_RH = 58, B_RULER = 20;
+
+function sizeBar() {
+  const cv = document.getElementById('bar-canvas');
+  if (!cv.parentElement) return;
+  const pw = cv.parentElement.clientWidth - 28;
+  if (pw < 10) return;
+  cv.width  = pw;
+  cv.height = B_RH * 8 + B_RULER;
+  cv.style.width  = pw + 'px';
+  cv.style.height = cv.height + 'px';
+  // also resize left column items to match
+  // heights set by CSS padding in drum-item layout
+}
+
+function drawBar() {
+  const cv = document.getElementById('bar-canvas');
+  if (!cv.parentElement || !cv.parentElement.offsetParent) return;
+  if (!cv.width) sizeBar();
+  const ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const bw  = W - B_PL - B_PR;
+  const AMP = B_RH * 0.37;
+  const spx = B_PL + barSX * bw;
+
+  const acc = css('--accent'), mut = css('--muted');
+  const brd = css('--border'), nod = css('--node-col'), bg = css('--bg');
+
+  // Shared ruler at bottom
+  const rulerY = B_RH * 8;
+  ctx.strokeStyle = mut; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(B_PL, rulerY); ctx.lineTo(W - B_PR, rulerY); ctx.stroke();
+  ctx.fillStyle = mut; ctx.font = '8px DM Mono,monospace'; ctx.textAlign = 'center';
+  for (let t = 0; t <= 10; t++) {
+    const px = B_PL + t * bw / 10, major = (t % 5 === 0);
+    ctx.strokeStyle = mut; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(px, rulerY); ctx.lineTo(px, rulerY + (major ? 7 : 4)); ctx.stroke();
+    if (major) ctx.fillText((t/10).toFixed(1), px, rulerY + 15);
+  }
+  ctx.fillStyle = mut; ctx.font = '8px DM Mono,monospace'; ctx.textAlign = 'left';
+  ctx.fillText('x/L', W - B_PR + 2, rulerY + 15);
+
+  // Strike x/L label
+  ctx.fillStyle = acc; ctx.textAlign = 'center';
+  ctx.fillText(barSX.toFixed(2), spx, rulerY + 15);
+
+  // Vertical strike line across all rows
+  ctx.strokeStyle = acc + '66'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+  ctx.beginPath(); ctx.moveTo(spx, 0); ctx.lineTo(spx, rulerY); ctx.stroke();
+  ctx.setLineDash([]);
+
+  document.getElementById('bar-strike-x').textContent = barSX.toFixed(3);
+
+  const amps = barAmps();
+  const maxA = Math.max(...amps, 1e-9);
+
+  for (let n = 0; n < 8; n++) {
+    const rowTop = n * B_RH, midY = rowTop + B_RH / 2, col = MC[n], pts = 300;
+
+    if (n > 0) {
+      ctx.strokeStyle = brd; ctx.lineWidth = 0.5;
+      ctx.beginPath(); ctx.moveTo(0, rowTop); ctx.lineTo(W, rowTop); ctx.stroke();
+    }
+
+    // Dashed baseline
+    ctx.strokeStyle = brd; ctx.lineWidth = 0.8; ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(B_PL, midY); ctx.lineTo(W - B_PR, midY); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Filled area
+    ctx.beginPath(); ctx.moveTo(B_PL, midY);
+    for (let i = 0; i <= pts; i++) ctx.lineTo(B_PL + i/pts*bw, midY - bPhiN(i/pts, n)*AMP);
+    ctx.lineTo(W - B_PR, midY); ctx.closePath();
+    ctx.fillStyle = col + '1e'; ctx.fill();
+
+    // Curve
+    ctx.strokeStyle = col; ctx.lineWidth = 1.6; ctx.beginPath();
+    for (let i = 0; i <= pts; i++) {
+      const xi = i/pts, px = B_PL + xi*bw, py = midY - bPhiN(xi, n)*AMP;
+      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    // Free-end ticks
+    [B_PL, W - B_PR].forEach(ex => {
+      ctx.strokeStyle = mut; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(ex, midY - AMP*.85); ctx.lineTo(ex, midY + AMP*.85); ctx.stroke();
+    });
+
+    // Interior node dots
+    BNODES[n].forEach(xf => {
+      ctx.fillStyle = nod; ctx.beginPath(); ctx.arc(B_PL + xf*bw, midY, 3, 0, Math.PI*2); ctx.fill();
+    });
+
+    // Strike dot sized by recipe amplitude
+    const dotY = midY - bPhiN(barSX, n) * AMP;
+    const dR   = 3 + amps[n]/maxA * 5;
+    ctx.fillStyle = acc; ctx.strokeStyle = bg; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(spx, dotY, dR, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+
+    // Freq label top-right
+    ctx.fillStyle = col; ctx.font = '7px DM Mono,monospace'; ctx.textAlign = 'right';
+    ctx.fillText(BLABELS[n], W - B_PR - 2, rowTop + 10);
+  }
+
+  updateBarRecipe(amps, maxA);
+}
+
+function updateBarRecipe(amps, maxA) {
+  // If clock is scrubbing, scale amps by exponential decay at clock time
+  const t = _barClock;
+  const rc = document.getElementById('bar-recipe'); rc.innerHTML = '';
+  amps.forEach((a, i) => {
+    const tau_i = _tau / BRATIOS[i];
+    const decayed = a * Math.exp(-t / tau_i);
+    const f = decayed / (maxA || 1e-9);
+    const row = document.createElement('div'); row.className = 'recipe-row';
+    row.innerHTML = `<span class="recipe-label">${BLABELS[i]}</span>
+      <span class="recipe-bar-wrap"><span class="recipe-bar-fill" style="width:${Math.min(100,f*100).toFixed(1)}%;background:${MC[i]};"></span></span>
+      <span class="recipe-val">${(f*100).toFixed(0)}%</span>
+      <span class="recipe-tau">τ=${tau_i < 1 ? tau_i.toFixed(2) : tau_i.toFixed(1)}s</span>`;
+    rc.appendChild(row);
+  });
+}
+
+function buildBarList() {
+  const el = document.getElementById('bar-mode-list'); el.innerHTML = '';
+  BL.forEach((_, i) => {
+    const d = document.createElement('div'); d.className = 'mode-item drum-item';
+    const mname = document.createElement('span'); mname.className = 'mname'; mname.style.color = MC[i]; mname.textContent = 'n=' + (i+1);
+    const minfo = document.createElement('span'); minfo.className = 'minfo';
+    const mfreq = document.createElement('span'); mfreq.className = 'mfreq'; mfreq.textContent = BLABELS[i];
+    const mhz   = document.createElement('span'); mhz.className = 'mhz'; mhz.id = 'bar-mhz-' + i; mhz.textContent = Math.round(_f1 * BRATIOS[i]) + ' Hz';
+    minfo.appendChild(mfreq); minfo.appendChild(mhz);
+    const mplay = document.createElement('button'); mplay.className = 'mplay'; mplay.id = 'bar-mplay-' + i; mplay.textContent = SYM_PLAY;
+    mplay.onclick = e => { e.stopPropagation(); playBarMode(i); };
+    d.appendChild(mname); d.appendChild(minfo); d.appendChild(mplay);
+    el.appendChild(d);
+  });
+}
+
+function initBarDrag() {
+  const cv = document.getElementById('bar-canvas'); let drag = false;
+  function frac(e) {
+    const r = cv.getBoundingClientRect();
+    const cx = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+    const bw = cv.width - B_PL - B_PR;
+    return Math.max(0.01, Math.min(0.99, (cx / r.width * cv.width - B_PL) / bw));
+  }
+  cv.addEventListener('mousedown',  e => { drag=true; barSX=frac(e); drawBar();
+    const a=barAmps(),m=Math.max(...a,1e-9); drawDecay('bar-decay-canvas',BRATIOS,a,m,_barClock,i=>_tau/BRATIOS[i],true); e.preventDefault(); });
+  cv.addEventListener('touchstart', e => { drag=true; barSX=frac(e); drawBar();
+    const a=barAmps(),m=Math.max(...a,1e-9); drawDecay('bar-decay-canvas',BRATIOS,a,m,_barClock,i=>_tau/BRATIOS[i],true); e.preventDefault(); }, {passive:false});
+  window.addEventListener('mousemove',  e => { if (!drag) return; barSX=frac(e); drawBar();
+    const a=barAmps(),m=Math.max(...a,1e-9); drawDecay('bar-decay-canvas',BRATIOS,a,m,_barClock,i=>_tau/BRATIOS[i],true); });
+  window.addEventListener('touchmove',  e => { if (!drag) return; barSX=frac(e); drawBar();
+    const a=barAmps(),m=Math.max(...a,1e-9); drawDecay('bar-decay-canvas',BRATIOS,a,m,_barClock,i=>_tau/BRATIOS[i],true); e.preventDefault(); }, {passive:false});
+  window.addEventListener('mouseup',   () => drag = false);
+  window.addEventListener('touchend',  () => drag = false);
+}
+
+// ═══════════════════════════════════════════════════════
+// CIRCULAR MEMBRANE — Bessel modes
+//
+// DEGENERACY: For m ≥ 1 each (m,n) mode is doubly degenerate:
+//   cos-partner: J_m(β r/R)·cos(mθ)
+//   sin-partner: J_m(β r/R)·sin(mθ)
+//
+// On a perfect drum they share the same frequency.
+// On any real drum (elliptical rim, non-uniform tension) they split
+// by δf ~ 0.5–3 Hz, producing amplitude beating at that rate —
+// the characteristic "wobble" heard in bells and tom-toms.
+//
+// Synthesis model:
+//   - Both partners included for m ≥ 1.
+//   - cos-partner amplitude ∝ |J_m| · |cos(m·θ_strike)|
+//   - sin-partner amplitude ∝ |J_m| · |sin(m·θ_strike)|
+//   - δf drawn from U(0.5, 2.5) Hz per mode, independent each play.
+//   - m = 0 modes are non-degenerate (single sinusoid).
+//
+// This gives correct angle-dependent excitation and realistic beating.
+// ═══════════════════════════════════════════════════════
+function besselJ(m, x) {
+  if (x < 1e-10) return m === 0 ? 1 : 0;
+  const NMAX = Math.max(m + 25, Math.ceil(1.2*x) + 30);
+  const arr = new Float64Array(NMAX + 2); arr[NMAX-1] = 1e-200;
+  for (let k = NMAX-1; k >= 1; k--) arr[k-1] = (2*k/x)*arr[k] - arr[k+1];
+  let j0 = 1, t = 1; for (let k = 1; k <= 25; k++) { t *= -(x*x)/(4*k*k); j0 += t; }
+  return arr[m] * (j0 / arr[0]);
+}
+
+const DMODES = (() => {
+  const zeros = {
+    0:[2.4048,5.5201,8.6537,11.7915], 1:[3.8317,7.0156,10.1735,13.3237],
+    2:[5.1356,8.4172,11.6198,14.7960], 3:[6.3802,9.7610,13.0152],
+    4:[7.5883,11.0647,14.3725], 5:[8.7715,12.3386],
+    6:[9.9361,13.5893], 7:[11.0864], 8:[12.2251],
+  };
+  const b01 = 2.4048, modes = [];
+  for (const [ms, zs] of Object.entries(zeros)) {
+    const m = +ms;
+    zs.forEach((bz, ni) => {
+      if (bz/b01 > 6.2) return;
+      const n = ni+1, fr = bz/b01;
+      modes.push({ label:`(${m},${n})`, m, n, beta:bz, fr,
+        fl: (m===0 && n===1) ? 'f₁' : fr.toFixed(2) + ' f₁' });
+    });
+  }
+  modes.sort((a, b) => a.fr - b.fr);
+  return modes;
+})();
+
+const DNORM = DMODES.map(md => {
+  let mx = 0;
+  for (let i = 0; i <= 500; i++) mx = Math.max(mx, Math.abs(besselJ(md.m, md.beta*i/500)));
+  return mx || 1;
+});
+function dRadAmp(r, i) { return Math.abs(besselJ(DMODES[i].m, DMODES[i].beta*r)) / DNORM[i]; }
+function drumAmps()    { return DMODES.map((_, i) => dRadAmp(drumSR, i)); }
+
+let drumSR = 0.5, drumST = Math.PI / 6;  // strike: radius and angle (free 2D)
+
+const DCOLS = 4, DROWS = 2;
+
+function sizeDrum() {
+  const cv = document.getElementById('drum-canvas');
+  if (!cv.parentElement) return;
+  const pw = cv.parentElement.clientWidth - 28;
+  if (pw < 10) return;
+  const cw = Math.floor(pw / DCOLS);
+  cv.width  = pw;
+  cv.height = cw * DROWS;
+  cv.style.width  = pw + 'px';
+  cv.style.height = cv.height + 'px';
+}
+
+function drawCell(ctx, mi, ox, oy, cw, ch) {
+  const md = DMODES[mi], PAD = 4;
+  const cx = ox + cw/2, cy = oy + ch/2;
+  const R  = Math.min(cw, ch)/2 - PAD - 14;
+
+  // For m≥1 we display the superposed pattern rotated to align with strike:
+  //   J_m(β r/R) · cos(m(θ − θ_strike))
+  // This ensures the antinode always points toward the strike dot,
+  // and nodal lines always pass through it (cos(m·0) = max, zeros at ±π/(2m) etc.)
+  // For m=0 the pattern is rotationally symmetric so θ_strike doesn't matter.
+  const img = ctx.createImageData(cw, ch);
+  for (let py = 0; py < ch; py++) {
+    for (let px = 0; px < cw; px++) {
+      const dx = (ox+px-cx)/R, dy = (oy+py-cy)/R;
+      const r = Math.sqrt(dx*dx + dy*dy);
+      if (r > 1) continue;
+      const theta = Math.atan2(dy, dx);
+      const jv = besselJ(md.m, md.beta*r) / DNORM[mi];
+      // Rotate pattern so antinode faces strike direction
+      const v = jv * Math.cos(md.m * (theta - drumST));
+      let rr, gg, bb;
+      if (v >= 0) { rr=20; gg=Math.round(90+v*145); bb=Math.round(170+v*75); }
+      else { const nv=-v; rr=Math.round(145+nv*105); gg=Math.round(35+nv*30); bb=35; }
+      const idx = (py*cw+px)*4;
+      img.data[idx]=rr; img.data[idx+1]=gg; img.data[idx+2]=bb; img.data[idx+3]=200;
+    }
+  }
+  const oc = document.createElement('canvas'); oc.width=cw; oc.height=ch;
+  oc.getContext('2d').putImageData(img, 0, 0);
+  ctx.drawImage(oc, ox, oy);
+
+  ctx.strokeStyle = css('--node-col'); ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI*2); ctx.stroke();
+
+  // Strike dot: free 2D position
+  const sx = cx + drumSR*R*Math.cos(drumST), sy = cy + drumSR*R*Math.sin(drumST);
+  ctx.fillStyle = css('--accent'); ctx.strokeStyle = css('--bg'); ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(sx, sy, 4, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = css('--accent') + '66'; ctx.lineWidth = 0.8; ctx.setLineDash([2, 3]);
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(sx, sy); ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.fillStyle = MC[mi % MC.length]; ctx.font = 'bold 8px DM Mono,monospace'; ctx.textAlign = 'left';
+  ctx.fillText(md.label, ox+4, oy+12);
+  ctx.fillStyle = css('--muted'); ctx.font = '7px DM Mono,monospace';
+  ctx.fillText(md.fl, ox+4, oy+ch-4);
+}
+
+function drawDrum() {
+  const cv = document.getElementById('drum-canvas');
+  if (!cv.parentElement || !cv.parentElement.offsetParent) return;
+  if (!cv.width) sizeDrum();
+  const ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  ctx.clearRect(0, 0, W, H);
+  const cw = Math.floor(W/DCOLS), ch = Math.floor(H/DROWS);
+  for (let i = 0; i < 8; i++) drawCell(ctx, i, (i%DCOLS)*cw, Math.floor(i/DCOLS)*ch, cw, ch);
+  ctx.strokeStyle = css('--border'); ctx.lineWidth = 1;
+  for (let c = 1; c < DCOLS; c++) { ctx.beginPath(); ctx.moveTo(c*cw,0); ctx.lineTo(c*cw,H); ctx.stroke(); }
+  ctx.beginPath(); ctx.moveTo(0,ch); ctx.lineTo(W,ch); ctx.stroke();
+  updateDrumRecipe();
+}
+
+function updateDrumRecipe() {
+  document.getElementById('drum-strike-r').textContent = drumSR.toFixed(3);
+  document.getElementById('drum-note').textContent = drumSR < 0.06
+    ? 'Central strike: only m=0 modes excited (Jm(0)=0 for m>0).'
+    : 'Recipe shows |Jm(β·r/R)| — total amplitude is angle-independent (cos²+sin²=1). The strike angle splits energy between degenerate partners but does not change recipe bar heights.';
+
+  const amps = drumAmps(), maxA = Math.max(...amps, 1e-9);
+  const t = _drumClock;
+  const colors24 = [...MC,...MC,...MC].slice(0, 24);
+  const rc = document.getElementById('drum-recipe'); rc.innerHTML = '';
+  DMODES.forEach((md, i) => {
+    const tau_i = _tau / md.fr;
+    const decayed = amps[i] * Math.exp(-t / tau_i);
+    const f = decayed / maxA;
+    const small = (i >= 8);
+    const row = document.createElement('div'); row.className = 'recipe-row';
+    row.innerHTML = `<span class="recipe-label" style="font-size:${small?'.50':'.57'}rem;">${md.label}</span>
+      <span class="recipe-bar-wrap" style="height:${small?4:6}px;"><span class="recipe-bar-fill" style="width:${Math.min(100,f*100).toFixed(1)}%;background:${colors24[i]};"></span></span>
+      <span class="recipe-val" style="font-size:${small?'.50':'.57'}rem;">${(f*100).toFixed(0)}%</span>
+      ${i < 8 ? `<span class="recipe-tau">τ=${tau_i < 1 ? tau_i.toFixed(2) : tau_i.toFixed(1)}s</span>` : ''}`;
+    rc.appendChild(row);
+  });
+}
+
+function buildDrumList() {
+  const el = document.getElementById('drum-mode-list'); el.innerHTML = '';
+  DMODES.slice(0, 8).forEach((md, i) => {
+    const d = document.createElement('div'); d.className = 'mode-item drum-item';
+    // Row: [coloured label]  [stacked freq info]  [play button]
+    const mname = document.createElement('span'); mname.className = 'mname'; mname.style.color = MC[i]; mname.textContent = md.label;
+    const minfo = document.createElement('span'); minfo.className = 'minfo';
+    const mfreq = document.createElement('span'); mfreq.className = 'mfreq'; mfreq.textContent = md.fl;
+    const mhz   = document.createElement('span'); mhz.className = 'mhz'; mhz.id = 'drum-mhz-' + i; mhz.textContent = Math.round(_f1 * md.fr) + ' Hz';
+    minfo.appendChild(mfreq); minfo.appendChild(mhz);
+    const mplay = document.createElement('button'); mplay.className = 'mplay'; mplay.id = 'drum-mplay-' + i; mplay.textContent = SYM_PLAY;
+    mplay.onclick = e => { e.stopPropagation(); playDrumMode(i); };
+    d.appendChild(mname); d.appendChild(minfo); d.appendChild(mplay);
+    el.appendChild(d);
+  });
+}
+
+function initDrumDrag() {
+  const cv = document.getElementById('drum-canvas'); let drag = false;
+  function fromEv(e) {
+    const r = cv.getBoundingClientRect();
+    const ex = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+    const ey = (e.touches ? e.touches[0].clientY : e.clientY) - r.top;
+    const px = ex/r.width*cv.width, py = ey/r.height*cv.height;
+    const cw = Math.floor(cv.width/DCOLS), ch = Math.floor(cv.height/DROWS);
+    const col = Math.min(DCOLS-1, Math.floor(px/cw));
+    const row = Math.min(DROWS-1, Math.floor(py/ch));
+    const cx = (col+0.5)*cw, cy = (row+0.5)*ch;
+    const R  = Math.min(cw,ch)/2 - 4 - 14;
+    const dx = (px-cx)/R, dy = (py-cy)/R;
+    const rr = Math.sqrt(dx*dx + dy*dy);
+    return { r: Math.min(0.97, rr), theta: Math.atan2(dy, dx) };
+  }
+  cv.addEventListener('mousedown',  e => { drag=true; const p=fromEv(e); drumSR=p.r; drumST=p.theta; drawDrum();
+    const a=drumAmps(),m=Math.max(...a,1e-9); drawDecay('drum-decay-canvas',DMODES.map(md=>md.fr),a,m,_drumClock,i=>_tau/DMODES[i].fr,false); e.preventDefault(); });
+  cv.addEventListener('touchstart', e => { drag=true; const p=fromEv(e); drumSR=p.r; drumST=p.theta; drawDrum();
+    const a=drumAmps(),m=Math.max(...a,1e-9); drawDecay('drum-decay-canvas',DMODES.map(md=>md.fr),a,m,_drumClock,i=>_tau/DMODES[i].fr,false); e.preventDefault(); }, {passive:false});
+  window.addEventListener('mousemove',  e => { if (!drag) return; const p=fromEv(e); drumSR=p.r; drumST=p.theta; drawDrum();
+    const a=drumAmps(),m=Math.max(...a,1e-9); drawDecay('drum-decay-canvas',DMODES.map(md=>md.fr),a,m,_drumClock,i=>_tau/DMODES[i].fr,false); });
+  window.addEventListener('touchmove',  e => { if (!drag) return; const p=fromEv(e); drumSR=p.r; drumST=p.theta; drawDrum();
+    const a=drumAmps(),m=Math.max(...a,1e-9); drawDecay('drum-decay-canvas',DMODES.map(md=>md.fr),a,m,_drumClock,i=>_tau/DMODES[i].fr,false); e.preventDefault(); }, {passive:false});
+  window.addEventListener('mouseup',   () => drag = false);
+  window.addEventListener('touchend',  () => drag = false);
+}
+
+// ═══════════════════════════════════════════════════════
+// AUDIO
+// Bar:  τₙ = τ₁ / ratioₙ²   (thermoelastic / internal damping ∝ f²)
+// Drum: τₙ = τ₁ / ratioₙ    (radiation-dominated ∝ f)
+// Drum degeneracy: cos + sin partners with random δf ~ U(0.5, 2.5) Hz
+// ═══════════════════════════════════════════════════════
+let _AC = null;
+const _BMS = {}, _DMS = {};
+
+function getAC() {
+  if (!_AC) _AC = new (window.AudioContext || window.webkitAudioContext)();
+  if (_AC.state === 'suspended') _AC.resume();
+  return _AC;
+}
+
+function makeBuf(modes, dur) {
+  const ac = getAC(), sr = ac.sampleRate, n = Math.ceil(dur * sr);
+  const buf = ac.createBuffer(1, n, sr), d = buf.getChannelData(0);
+  const ph = modes.map(() => Math.random() * 2 * Math.PI);
+  for (let i = 0; i < n; i++) {
+    const t = i/sr; let s = 0;
+    modes.forEach((mo, mi) => {
+      if (mo.a < 5e-4) return;
+      s += mo.a * Math.exp(-t/mo.tau) * Math.sin(2*Math.PI*mo.f*t + ph[mi]);
+    });
+    d[i] = s;
+  }
+  let pk = 0; for (let i = 0; i < n; i++) pk = Math.max(pk, Math.abs(d[i]));
+  if (pk > 0) for (let i = 0; i < n; i++) d[i] = d[i]/pk * 0.85;
+  return buf;
+}
+
+function playSrc(buf, onEnd) {
+  const ac = getAC(), src = ac.createBufferSource();
+  src.buffer = buf; src.connect(ac.destination); src.start(); src.onended = onEnd; return src;
+}
+function killSrc(s) { if (s) try { s.stop(); } catch(e) {} return null; }
+
+// Bar full
+function startBarPlay() {
+  const amps = barAmps(), maxA = Math.max(...amps, 1e-9);
+  const modes = BL.map((_, i) => ({ f: _f1*BRATIOS[i], a: amps[i]/maxA, tau: _tau/BRATIOS[i] }));
+  const buf = makeBuf(modes, Math.min(_tau*5 + 0.3, 10));
+  setPlayBtn(true);
+  _barClock = 0;
+  startDecayAnim(true);
+  _mainSrc = playSrc(buf, () => { _mainSrc = null; setPlayBtn(false); stopDecayAnim(); });
+}
+
+// Bar single mode
+function playBarMode(i) {
+  const btn = document.getElementById('bar-mplay-' + i);
+  if (_BMS[i]) {
+    _BMS[i] = killSrc(_BMS[i]);
+    if (btn) { btn.textContent = SYM_PLAY; btn.classList.remove('sounding'); }
+    return;
+  }
+  const tau = _tau / BRATIOS[i];
+  const buf = makeBuf([{ f: _f1*BRATIOS[i], a: 1, tau }], Math.min(tau*5, 8));
+  if (btn) { btn.textContent = SYM_STOP; btn.classList.add('sounding'); }
+  _BMS[i] = playSrc(buf, () => {
+    _BMS[i] = null;
+    if (btn) { btn.textContent = SYM_PLAY; btn.classList.remove('sounding'); }
+  });
+}
+
+// Drum: build synthesis mode list with degenerate partners
+// For m≥1: cos-partner amplitude ∝ |Jm|·|cos(m·θ_strike)|
+//          sin-partner amplitude ∝ |Jm|·|sin(m·θ_strike)|
+// Both partners included with random δf ~ U(0.5, 2.5) Hz → beating.
+// Total energy = Jm²(β·r/R)·(cos²+sin²) = Jm²(β·r/R), angle-independent.
+function buildDrumSynthModes(amps, maxA) {
+  const modes = [];
+  DMODES.forEach((md, i) => {
+    const radA = amps[i] / maxA;
+    const tau  = _tau / md.fr;
+    const f0   = _f1 * md.fr;
+    if (md.m === 0) {
+      modes.push({ f: f0, a: radA, tau });
+    } else {
+      const ac = radA * Math.abs(Math.cos(md.m * drumST));
+      const as = radA * Math.abs(Math.sin(md.m * drumST));
+      const df = 0.5 + Math.random() * 2.0;
+      if (ac > 5e-4) modes.push({ f: f0,    a: ac, tau });
+      if (as > 5e-4) modes.push({ f: f0+df, a: as, tau });
+    }
+  });
+  return modes;
+}
+
+// Drum full
+function startDrumPlay() {
+  const amps = drumAmps(), maxA = Math.max(...amps, 1e-9);
+  const modes = buildDrumSynthModes(amps, maxA);
+  const buf = makeBuf(modes, Math.min(_tau*5 + 0.3, 8));
+  setPlayBtn(true);
+  _drumClock = 0;
+  startDecayAnim(false);
+  _mainSrc = playSrc(buf, () => { _mainSrc = null; setPlayBtn(false); stopDecayAnim(); });
+}
+
+// Drum single mode
+function playDrumMode(i) {
+  const btn = document.getElementById('drum-mplay-' + i);
+  if (_DMS[i]) {
+    _DMS[i] = killSrc(_DMS[i]);
+    if (btn) { btn.textContent = SYM_PLAY; btn.classList.remove('sounding'); }
+    return;
+  }
+  const md = DMODES[i], tau = _tau / md.fr;
+  const modes = [];
+  if (md.m === 0) {
+    modes.push({ f: _f1*md.fr, a: 1, tau });
+  } else {
+    // Both partners, weighted by strike angle, with δf beating
+    const ac = Math.abs(Math.cos(md.m * drumST));
+    const as = Math.abs(Math.sin(md.m * drumST));
+    const norm = Math.max(Math.sqrt(ac*ac + as*as), 1e-9);
+    const df = 0.5 + Math.random() * 2.0;
+    if (ac/norm > 5e-4) modes.push({ f: _f1*md.fr,    a: ac/norm, tau });
+    if (as/norm > 5e-4) modes.push({ f: _f1*md.fr+df, a: as/norm, tau });
+  }
+  const buf = makeBuf(modes, Math.min(tau*5, 8));
+  if (btn) { btn.textContent = SYM_STOP; btn.classList.add('sounding'); }
+  _DMS[i] = playSrc(buf, () => {
+    _DMS[i] = null;
+    if (btn) { btn.textContent = SYM_PLAY; btn.classList.remove('sounding'); }
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// DECAY VISUALIZER
+// Shows dB-vs-time lines for each mode (Fig. 9.22 style).
+// Animated in real time while playing; draggable timbre clock.
+// ═══════════════════════════════════════════════════════
+let _barClock  = 0, _drumClock = 0;
+let _decayRAF  = null;
+let _playStart = null;   // AudioContext time when play began
+
+const DV_H = 108, DV_DB_MIN = -65, DV_DB_MAX = 3;
+const DV_PL = 28, DV_PR = 6, DV_PT = 6, DV_PB = 18;
+
+function sizeDecayCanvas(id) {
+  const cv = document.getElementById(id);
+  if (!cv || !cv.parentElement) return;
+  const pw = cv.parentElement.clientWidth - 28;
+  if (pw < 10) return;
+  cv.width = pw; cv.height = DV_H;
+  cv.style.width = pw + 'px'; cv.style.height = DV_H + 'px';
+}
+
+function drawDecay(id, ratios, amps, maxA, clock, tauFn, isBar) {
+  const cv = document.getElementById(id);
+  if (!cv || !cv.width) return;
+  const ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const plotW = W - DV_PL - DV_PR;
+  const plotH = H - DV_PT - DV_PB;
+
+  // Compute display duration: whichever mode lives longest (τ₁ * 5 capped)
+  const maxTau = Math.max(...ratios.map((_, i) => tauFn(i)));
+  const tMax   = Math.min(maxTau * 4, 12);
+
+  const mut = css('--muted'), brd = css('--border'), acc = css('--accent'), bg = css('--bg');
+
+  // Grid
+  ctx.strokeStyle = brd; ctx.lineWidth = 0.5;
+  // dB gridlines at -20, -40, -60
+  [-20, -40, -60].forEach(db => {
+    const y = DV_PT + plotH * (1 - (db - DV_DB_MIN) / (DV_DB_MAX - DV_DB_MIN));
+    ctx.beginPath(); ctx.moveTo(DV_PL, y); ctx.lineTo(W - DV_PR, y); ctx.stroke();
+    ctx.fillStyle = mut; ctx.font = '7px DM Mono,monospace'; ctx.textAlign = 'right';
+    ctx.fillText(db + ' dB', DV_PL - 2, y + 3);
+  });
+  // x axis
+  ctx.beginPath(); ctx.moveTo(DV_PL, DV_PT + plotH); ctx.lineTo(W - DV_PR, DV_PT + plotH); ctx.stroke();
+  // x tick labels
+  ctx.fillStyle = mut; ctx.font = '7px DM Mono,monospace'; ctx.textAlign = 'center';
+  const nTicks = Math.min(6, Math.floor(tMax));
+  for (let s = 0; s <= nTicks; s++) {
+    const t = s * (tMax / nTicks);
+    const x = DV_PL + (t / tMax) * plotW;
+    ctx.fillText(t.toFixed(1) + 's', x, H - 2);
+  }
+
+  // Mode decay lines — only draw modes with nonzero amplitude at t=0
+  ratios.forEach((_, i) => {
+    if (i >= 8) return;   // cap at 8 modes for readability
+    const a0 = amps[i] / (maxA || 1e-9);
+    if (a0 < 0.01) return;
+    const tau_i = tauFn(i);
+    const col = MC[i];
+    ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    let started = false;
+    for (let px = 0; px <= plotW; px++) {
+      const t = (px / plotW) * tMax;
+      const amp = a0 * Math.exp(-t / tau_i);
+      const db  = amp > 1e-9 ? 20 * Math.log10(amp) : DV_DB_MIN - 5;
+      const cdb = Math.max(DV_DB_MIN, Math.min(DV_DB_MAX, db));
+      const x   = DV_PL + px;
+      const y   = DV_PT + plotH * (1 - (cdb - DV_DB_MIN) / (DV_DB_MAX - DV_DB_MIN));
+      started ? ctx.lineTo(x, y) : (ctx.moveTo(x, y), started = true);
+    }
+    ctx.stroke();
+  });
+
+  // Clock marker
+  const cx = DV_PL + (clock / tMax) * plotW;
+  ctx.strokeStyle = acc; ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]);
+  ctx.beginPath(); ctx.moveTo(cx, DV_PT); ctx.lineTo(cx, DV_PT + plotH); ctx.stroke();
+  ctx.setLineDash([]);
+  // small circle at top
+  ctx.fillStyle = acc;
+  ctx.beginPath(); ctx.arc(cx, DV_PT + 4, 3.5, 0, Math.PI*2); ctx.fill();
+
+  // Axes labels
+  ctx.save(); ctx.translate(9, DV_PT + plotH/2); ctx.rotate(-Math.PI/2);
+  ctx.fillStyle = mut; ctx.font = '7px DM Mono,monospace'; ctx.textAlign = 'center';
+  ctx.fillText('dB', 0, 0); ctx.restore();
+}
+
+function initDecayDrag(canvasId, getClockFn, setClockFn, getRatiosFn, getAmpsFn, tauFn, clockValId) {
+  const cv = document.getElementById(canvasId);
+  if (!cv) return;
+  let drag = false;
+
+  function tFromEv(e) {
+    const r = cv.getBoundingClientRect();
+    const ex = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+    const plotW = cv.width - DV_PL - DV_PR;
+    const frac  = Math.max(0, Math.min(1, (ex / r.width * cv.width - DV_PL) / plotW));
+    const maxTau = Math.max(...getRatiosFn().map((_, i) => tauFn(i)));
+    const tMax   = Math.min(maxTau * 4, 12);
+    return frac * tMax;
+  }
+
+  function apply(e) {
+    setClockFn(tFromEv(e));
+    document.getElementById(clockValId).textContent = 't = ' + getClockFn().toFixed(2) + ' s';
+    // redraw decay and update recipe
+    const amps = getAmpsFn(), maxA = Math.max(...amps, 1e-9);
+    drawDecay(canvasId, getRatiosFn(), amps, maxA, getClockFn(), tauFn, canvasId === 'bar-decay-canvas');
+    if (canvasId === 'bar-decay-canvas') { updateBarRecipe(amps, maxA); }
+    else { updateDrumRecipe(); }
+  }
+
+  cv.addEventListener('mousedown',  e => { drag=true; apply(e); e.preventDefault(); });
+  cv.addEventListener('touchstart', e => { drag=true; apply(e); e.preventDefault(); }, {passive:false});
+  window.addEventListener('mousemove',  e => { if (!drag) return; apply(e); });
+  window.addEventListener('touchmove',  e => { if (!drag) return; apply(e); e.preventDefault(); }, {passive:false});
+  window.addEventListener('mouseup',   () => drag = false);
+  window.addEventListener('touchend',  () => drag = false);
+}
+
+function startDecayAnim(isBar) {
+  if (_decayRAF) { cancelAnimationFrame(_decayRAF); _decayRAF = null; }
+  const ac = getAC();
+  _playStart = ac.currentTime;
+  const id   = isBar ? 'bar-decay-canvas'  : 'drum-decay-canvas';
+  const cvid = isBar ? 'bar-clock-val'     : 'drum-clock-val';
+
+  function ratiosFn() { return isBar ? BRATIOS : DMODES.map(m => m.fr); }
+  function tauFn(i)   { return isBar ? _tau / BRATIOS[i] : _tau / DMODES[i].fr; }
+  function ampsFn()   { return isBar ? barAmps() : drumAmps(); }
+
+  function tick() {
+    const t = ac.currentTime - _playStart;
+    if (isBar)  _barClock  = t;
+    else        _drumClock = t;
+    document.getElementById(cvid).textContent = 't = ' + t.toFixed(2) + ' s';
+    const amps = ampsFn(), maxA = Math.max(...amps, 1e-9);
+    drawDecay(id, ratiosFn(), amps, maxA, t, tauFn, isBar);
+    if (isBar) updateBarRecipe(amps, maxA);
+    else       updateDrumRecipe();
+    _decayRAF = requestAnimationFrame(tick);
+  }
+  _decayRAF = requestAnimationFrame(tick);
+}
+
+function stopDecayAnim() {
+  if (_decayRAF) { cancelAnimationFrame(_decayRAF); _decayRAF = null; }
+}
+
+// ── Init ──────────────────────────────────────────────
+window.addEventListener('load', () => {
+  sizeBar(); sizeDrum();
+  sizeDecayCanvas('bar-decay-canvas');
+  sizeDecayCanvas('drum-decay-canvas');
+  buildBarList(); buildDrumList();
+  initBarDrag(); initDrumDrag();
+  // Decay drag — bar
+  initDecayDrag('bar-decay-canvas',
+    () => _barClock, v => { _barClock = v; },
+    () => BRATIOS,
+    () => barAmps(),
+    i  => _tau / BRATIOS[i],
+    'bar-clock-val'
+  );
+  // Decay drag — drum
+  initDecayDrag('drum-decay-canvas',
+    () => _drumClock, v => { _drumClock = v; },
+    () => DMODES.map(m => m.fr),
+    () => drumAmps(),
+    i  => _tau / DMODES[i].fr,
+    'drum-clock-val'
+  );
+  drawBar();
+  // Draw initial static decay plots at t=0
+  const bAmps = barAmps(), bMax = Math.max(...bAmps, 1e-9);
+  drawDecay('bar-decay-canvas', BRATIOS, bAmps, bMax, 0, i => _tau / BRATIOS[i], true);
+  const dAmps = drumAmps(), dMax = Math.max(...dAmps, 1e-9);
+  drawDecay('drum-decay-canvas', DMODES.map(m => m.fr), dAmps, dMax, 0, i => _tau / DMODES[i].fr, false);
+});
+window.addEventListener('resize', () => {
+  sizeBar(); sizeDrum();
+  sizeDecayCanvas('bar-decay-canvas');
+  sizeDecayCanvas('drum-decay-canvas');
+  drawBar(); drawDrum();
+  const bAmps = barAmps(), bMax = Math.max(...bAmps, 1e-9);
+  drawDecay('bar-decay-canvas', BRATIOS, bAmps, bMax, _barClock, i => _tau / BRATIOS[i], true);
+  const dAmps = drumAmps(), dMax = Math.max(...dAmps, 1e-9);
+  drawDecay('drum-decay-canvas', DMODES.map(m => m.fr), dAmps, dMax, _drumClock, i => _tau / DMODES[i].fr, false);
+});
+</script>
+</body>
+</html>
