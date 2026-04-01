@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Waveform Explorer — Exam</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg:      #f5f6fa;
+    --surface: #ffffff;
+    --border:  #d0d5e8;
+    --text:    #1a1d2e;
+    --muted:   #6b7280;
+    --accent:  #c97e00;
+    --accent2: #0077aa;
+    --btn-bg:  #edf0f7;
+    --c-zero-line:   rgba(0,0,0,0.08);
+    --c-period-tick: rgba(0,0,0,0.05);
+    --c-axis-line:   rgba(0,0,0,0.12);
+    --c-grid-line:   rgba(0,0,0,0.05);
+    --c-ghost-slot:  rgba(0,0,0,0.03);
+    --c-muted-label: rgba(80,90,120,0.65);
+    --c-freq-active: rgba(30,35,60,0.55);
+    --c-freq-ghost:  rgba(80,90,120,0.30);
+    --c-h-ghost:     rgba(80,90,120,0.40);
+    --c-sum-line:    #c97e00;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px 14px 32px;
+  }
+
+  h1 {
+    font-family: 'DM Mono', monospace;
+    font-size: 1.0rem;
+    font-weight: 400;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 0.76rem;
+    letter-spacing: 0.05em;
+    margin-bottom: 14px;
+    text-align: center;
+  }
+
+  .shell { width: 100%; max-width: 1100px; display: flex; flex-direction: column; gap: 12px; }
+
+  /* ── TABS ── */
+  .tab-bar {
+    display: flex;
+    gap: 6px;
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 2px;
+  }
+  .tab-btn {
+    padding: 8px 20px;
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+    background: var(--btn-bg);
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.70rem;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.14s;
+    position: relative;
+    bottom: -2px;
+  }
+  .tab-btn:hover { color: var(--accent); border-color: var(--border); }
+  .tab-btn.active {
+    background: var(--surface);
+    color: var(--accent);
+    border-color: var(--border);
+    border-bottom-color: var(--surface);
+    font-weight: 500;
+  }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: flex; flex-direction: column; gap: 12px; }
+
+  /* ── PRESET BUTTONS ── */
+  .preset-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .preset-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.60rem;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-right: 4px;
+  }
+  .wave-btn {
+    padding: 9px 22px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--btn-bg);
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: all 0.14s;
+    white-space: nowrap;
+  }
+  .wave-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .wave-btn.active-preset {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+    font-weight: 500;
+  }
+
+  /* ── CANVAS PANELS ── */
+  .vis-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  @media (min-width: 640px) { .vis-row { grid-template-columns: 1fr 1fr; } }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 16px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .panel-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.60rem;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  canvas { width: 100%; border-radius: 3px; display: block; }
+
+  /* ── COMPARE LAYOUT ── */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 600px) { .compare-grid { grid-template-columns: 1fr; } }
+  .compare-col { display: flex; flex-direction: column; gap: 10px; }
+  .compare-col-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.70rem;
+    font-weight: 500;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    text-align: center;
+    padding: 6px;
+    border-radius: 6px;
+  }
+  .col-a-title { color: var(--accent2); background: rgba(0,119,170,0.07); }
+  .col-b-title { color: #9b59b6;        background: rgba(155,89,182,0.07); }
+</style>
+</head>
+<body>
+
+<h1>Waveform Explorer</h1>
+<p class="subtitle">A3 = 220 Hz &nbsp;·&nbsp; Waveforms and vibration recipes</p>
+
+<div class="shell">
+
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tab-build"   onclick="switchTab('build')">Build</button>
+    <button class="tab-btn"        id="tab-compare" onclick="switchTab('compare')">Compare</button>
+  </div>
+
+  <!-- ═══ BUILD ═══ -->
+  <div class="tab-panel active" id="panel-build">
+
+    <div class="preset-panel">
+      <span class="preset-label">Waveform:</span>
+      <button class="wave-btn" id="btn-sine"     onclick="loadPreset('sine')">Sine</button>
+      <button class="wave-btn" id="btn-sawtooth" onclick="loadPreset('sawtooth')">Sawtooth</button>
+      <button class="wave-btn" id="btn-square"   onclick="loadPreset('square')">Square</button>
+      <button class="wave-btn" id="btn-triangle" onclick="loadPreset('triangle')">Triangle</button>
+    </div>
+
+    <div class="vis-row">
+      <div class="panel">
+        <div class="panel-title">Waveform &nbsp;·&nbsp; time domain</div>
+        <canvas id="build-wave" height="220"></canvas>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Vibration recipe &nbsp;·&nbsp; linear amplitude</div>
+        <canvas id="build-spec" height="220"></canvas>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══ COMPARE ═══ -->
+  <div class="tab-panel" id="panel-compare">
+    <div class="compare-grid">
+
+      <div class="compare-col">
+        <div class="compare-col-title col-a-title">Waveform A</div>
+        <div class="panel">
+          <div class="panel-title">Components + sum &nbsp;·&nbsp; time domain</div>
+          <canvas id="cmp-wave-a" height="260"></canvas>
+        </div>
+        <div class="panel">
+          <div class="panel-title">Vibration recipe &nbsp;·&nbsp; linear amplitude</div>
+          <canvas id="cmp-spec-a" height="180"></canvas>
+        </div>
+      </div>
+
+      <div class="compare-col">
+        <div class="compare-col-title col-b-title">Waveform B</div>
+        <div class="panel">
+          <div class="panel-title">Components + sum &nbsp;·&nbsp; time domain</div>
+          <canvas id="cmp-wave-b" height="260"></canvas>
+        </div>
+        <div class="panel">
+          <div class="panel-title">Vibration recipe &nbsp;·&nbsp; linear amplitude</div>
+          <canvas id="cmp-spec-b" height="180"></canvas>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// Constants
+// ═══════════════════════════════════════════════
+const F0       = 220;
+const N_HARM   = 12;
+const SHOW_SEC = 3.5 / F0;
+const H_COLORS = [
+  '#ef4444','#f97316','#eab308','#84cc16',
+  '#22c55e','#06b6d4','#3b82f6','#8b5cf6',
+  '#ec4899','#f43f5e','#14b8a6','#a78bfa'
+];
+
+// ═══════════════════════════════════════════════
+// Waveform presets — amplitudes for n=1..12
+// ═══════════════════════════════════════════════
+function makePreset(type) {
+  const a = new Array(N_HARM).fill(0);
+  for (let i = 0; i < N_HARM; i++) {
+    const n = i + 1;
+    if (type === 'sine') {
+      a[i] = (n === 1) ? 1 : 0;
+    } else if (type === 'sawtooth') {
+      // a_n = 1/n (all harmonics)
+      a[i] = 1 / n;
+    } else if (type === 'square') {
+      // a_n = 1/n for odd n only
+      a[i] = (n % 2 === 1) ? 1 / n : 0;
+    } else if (type === 'triangle') {
+      // a_n = 1/n² for odd n, alternating sign
+      if (n % 2 === 1) {
+        const k = (n - 1) / 2;
+        a[i] = (Math.pow(-1, k)) / (n * n);
+      }
+    }
+  }
+  return a;
+}
+
+// ═══════════════════════════════════════════════
+// Build state
+// ═══════════════════════════════════════════════
+let buildAmps    = new Array(N_HARM).fill(0);
+let activePreset = null;
+
+// ═══════════════════════════════════════════════
+// Compare state — sawtooth 1–12, fixed at session load
+// ═══════════════════════════════════════════════
+const CMP_N      = 12;
+const cmpAmps    = makePreset('sawtooth');
+const cmpPhasesA = new Array(CMP_N).fill(0);
+const cmpPhasesB = Array.from({length: CMP_N}, (_, i) =>
+  i < 4 ? Math.PI/2 + Math.random() * Math.PI
+         : Math.random() * 2 * Math.PI
+);
+
+// ═══════════════════════════════════════════════
+// Tab switching
+// ═══════════════════════════════════════════════
+let currentTab = 'build';
+function switchTab(name) {
+  currentTab = name;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-'   + name).classList.add('active');
+  document.getElementById('panel-' + name).classList.add('active');
+  requestAnimationFrame(name === 'compare' ? drawCompare : drawBuild);
+}
+
+// ═══════════════════════════════════════════════
+// Canvas helpers
+// ═══════════════════════════════════════════════
+function cssVar(n) {
+  return getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+}
+function resizeCanvas(c) {
+  const dpr = window.devicePixelRatio || 1;
+  const r   = c.getBoundingClientRect();
+  const nW  = Math.round(r.width  * dpr);
+  const nH  = Math.round(r.height * dpr);
+  if (c.width !== nW || c.height !== nH) {
+    c.width = nW; c.height = nH;
+    c.getContext('2d').scale(dpr, dpr);
+  }
+}
+
+// ═══════════════════════════════════════════════
+// Preset loader
+// ═══════════════════════════════════════════════
+function loadPreset(type) {
+  activePreset = type;
+  buildAmps    = makePreset(type);
+  ['sine','sawtooth','square','triangle'].forEach(t =>
+    document.getElementById('btn-' + t).classList.toggle('active-preset', t === type));
+  drawBuild();
+}
+
+// ═══════════════════════════════════════════════
+// Spectrum — linear scale
+// Amplitude value rotated above each bar; frequency below
+// ═══════════════════════════════════════════════
+function drawSpectrum(canvas, amps) {
+  resizeCanvas(canvas);
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.width/dpr, H = canvas.height/dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  const pL=38, pR=8, pT=20, pB=34;  // pB for two rows of labels below
+  const iW=W-pL-pR, iH=H-pT-pB;
+  const nH = N_HARM;
+
+  // Axes
+  ctx.strokeStyle = cssVar('--c-axis-line');
+  ctx.lineWidth = 1; ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(pL,pT); ctx.lineTo(pL,pT+iH); ctx.lineTo(pL+iW,pT+iH);
+  ctx.stroke();
+
+  // Grid at 0.25, 0.5, 0.75
+  ctx.setLineDash([2,4]);
+  ctx.strokeStyle = cssVar('--c-grid-line');
+  for (const g of [0.25, 0.5, 0.75]) {
+    const y = pT + iH*(1-g);
+    ctx.beginPath(); ctx.moveTo(pL,y); ctx.lineTo(pL+iW,y); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // Max absolute amplitude for scaling
+  let maxA = 0;
+  for (let i = 0; i < nH; i++) maxA = Math.max(maxA, Math.abs(amps[i]));
+  if (maxA < 1e-6) maxA = 1;
+
+  const slotW = iW / nH;
+
+  for (let i = 0; i < nH; i++) {
+    const col = H_COLORS[i % 12];
+    const a   = Math.abs(amps[i]);
+    const xc  = pL + i*slotW + slotW*0.5;   // bar center x
+    const bw  = slotW * 0.62;
+    const x   = xc - bw/2;
+
+    if (a > 1e-6) {
+      const barH = (a / maxA) * iH;
+      const yTop = pT + iH - barH;
+      const gr   = ctx.createLinearGradient(0, yTop, 0, pT+iH);
+      gr.addColorStop(0, col); gr.addColorStop(1, col+'28');
+      ctx.fillStyle = gr; ctx.fillRect(x, yTop, bw, barH);
+      ctx.fillStyle = col; ctx.fillRect(x, yTop, bw, 2);
+
+      // Amplitude value — rotated 90° just above the bar top
+      const valStr = a.toFixed(3);
+      ctx.save();
+      ctx.translate(xc, yTop - 3);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillStyle = col;
+      ctx.font      = "7px 'DM Mono',monospace";
+      ctx.textAlign = 'left';
+      ctx.fillText(valStr, 0, 0);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = cssVar('--c-ghost-slot');
+      ctx.fillRect(x, pT, bw, iH);
+    }
+
+    // Harmonic label (n=1 etc.) below bar
+    ctx.fillStyle = a > 1e-6 ? col : cssVar('--c-h-ghost');
+    ctx.font      = "8px 'DM Mono',monospace";
+    ctx.textAlign = 'center';
+    ctx.fillText('n'+(i+1), xc, pT+iH+11);
+
+    // Frequency label below harmonic label
+    const freq = (i+1)*F0;
+    const fStr = freq >= 1000 ? (freq/1000).toFixed(1)+'k' : String(freq);
+    ctx.fillStyle = a > 1e-6 ? cssVar('--c-freq-active') : cssVar('--c-freq-ghost');
+    ctx.font      = "7px 'DM Mono',monospace";
+    ctx.fillText(fStr, xc, pT+iH+22);
+  }
+
+  // Y-axis labels
+  ctx.fillStyle = cssVar('--c-muted-label');
+  ctx.font      = "8px 'DM Mono',monospace";
+  ctx.textAlign = 'right';
+  ctx.fillText('1',    pL-3, pT+6);
+  ctx.fillText('0.5',  pL-3, pT+iH*0.50+4);
+  ctx.fillText('0',    pL-3, pT+iH+4);
+}
+
+// ═══════════════════════════════════════════════
+// Waveform — stacked components + sum
+// amps[]: amplitudes; phases[]: offsets (rad); sumColor: CSS string
+// ═══════════════════════════════════════════════
+function drawWaveform(canvas, amps, phases, sumColor) {
+  resizeCanvas(canvas);
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.width/dpr, H = canvas.height/dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  const nPts = 800;
+  const tMax = SHOW_SEC;
+
+  // Zero line
+  ctx.strokeStyle = cssVar('--c-zero-line');
+  ctx.lineWidth = 1; ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(0,H/2); ctx.lineTo(W,H/2); ctx.stroke();
+
+  // Period ticks
+  ctx.setLineDash([3,5]); ctx.strokeStyle = cssVar('--c-period-tick');
+  for (let p=1; p<4; p++) {
+    const x = (p/3.5)*W;
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  const acts = [];
+  for (let i = 0; i < amps.length; i++) if (Math.abs(amps[i]) > 1e-6) acts.push(i);
+  if (!acts.length) return;
+
+  // Stacked components — lower portion
+  const laneZoneH = H * 0.42;
+  const laneH     = laneZoneH / acts.length;
+  acts.forEach((idx, rank) => {
+    const col = H_COLORS[idx % 12];
+    const cy  = H*0.78 - rank*laneH;
+    const amp = Math.min(laneH*0.44, H*0.055);
+    const phi = phases ? phases[idx] : 0;
+    ctx.strokeStyle = col; ctx.globalAlpha = 0.38; ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    for (let xi=0; xi<nPts; xi++) {
+      const t = (xi/(nPts-1))*tMax;
+      const y = cy - amp*Math.sin(2*Math.PI*(idx+1)*F0*t + phi);
+      xi===0 ? ctx.moveTo(0,y) : ctx.lineTo((xi/(nPts-1))*W, y);
+    }
+    ctx.stroke(); ctx.globalAlpha = 1;
+  });
+
+  // Peak-normalise sum
+  let peak = 0;
+  for (let xi=0; xi<400; xi++) {
+    const t = (xi/399)*tMax;
+    let v = 0;
+    for (const idx of acts) v += amps[idx]*Math.sin(2*Math.PI*(idx+1)*F0*t + (phases?phases[idx]:0));
+    if (Math.abs(v) > peak) peak = Math.abs(v);
+  }
+  if (peak < 1e-6) peak = 1;
+
+  // Sum line
+  ctx.strokeStyle = sumColor || cssVar('--c-sum-line');
+  ctx.lineWidth = 2.4;
+  ctx.beginPath();
+  for (let xi=0; xi<nPts; xi++) {
+    const t = (xi/(nPts-1))*tMax;
+    let v = 0;
+    for (const idx of acts) v += amps[idx]*Math.sin(2*Math.PI*(idx+1)*F0*t + (phases?phases[idx]:0));
+    const y = H/2 - (H*0.40)*(v/peak);
+    xi===0 ? ctx.moveTo(0,y) : ctx.lineTo((xi/(nPts-1))*W, y);
+  }
+  ctx.stroke();
+}
+
+// ═══════════════════════════════════════════════
+// Top-level draw
+// ═══════════════════════════════════════════════
+function drawBuild() {
+  drawWaveform(document.getElementById('build-wave'), buildAmps, null, cssVar('--c-sum-line'));
+  drawSpectrum(document.getElementById('build-spec'), buildAmps);
+}
+
+function drawCompare() {
+  drawWaveform(document.getElementById('cmp-wave-a'), cmpAmps, cmpPhasesA, '#0077aa');
+  drawWaveform(document.getElementById('cmp-wave-b'), cmpAmps, cmpPhasesB, '#9b59b6');
+  drawSpectrum(document.getElementById('cmp-spec-a'), cmpAmps);
+  drawSpectrum(document.getElementById('cmp-spec-b'), cmpAmps);
+}
+
+// ═══════════════════════════════════════════════
+// Init — load sawtooth by default
+// ═══════════════════════════════════════════════
+let rzTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(rzTimer);
+  rzTimer = setTimeout(() => { currentTab==='compare' ? drawCompare() : drawBuild(); }, 80);
+});
+loadPreset('sine');
+</script>
+</body>
+</html>
