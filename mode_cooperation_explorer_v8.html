@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mode Cooperation Explorer v8</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
+  :root {
+    --bg:#0f1117; --surface:#181c27; --border:#2a2f3f; --text:#e4e8f0;
+    --muted:#7a8099; --accent:#f0c040; --accent2:#4fc3f7; --btn-bg:#1e2435;
+    --panel-r:10px; --red:#f87171; --green:#4ade80;
+  }
+  [data-theme="light"] {
+    --bg:#f5f6fa; --surface:#ffffff; --border:#d0d5e8; --text:#1a1d2e;
+    --muted:#6b7280; --accent:#c97e00; --accent2:#0077aa; --btn-bg:#edf0f7;
+    --red:#dc2626; --green:#16a34a;
+  }
+  *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif;
+         font-size:13px; min-height:100vh; display:flex; flex-direction:column;
+         align-items:center; padding:16px 16px 60px; }
+  h1 { font-family:'DM Mono',monospace; font-size:.95rem; font-weight:400;
+       letter-spacing:.12em; color:var(--accent); text-transform:uppercase; margin-bottom:2px; }
+  .subtitle { color:var(--muted); font-size:.72rem; letter-spacing:.05em; margin-bottom:12px; text-align:center; }
+  .shell { width:100%; max-width:1140px; display:flex; flex-direction:column; gap:8px; }
+
+  .panel { background:var(--surface); border:1px solid var(--border); border-radius:var(--panel-r); padding:11px 16px; }
+  .panel-label { font-family:'DM Mono',monospace; font-size:.57rem; letter-spacing:.10em;
+                 color:var(--muted); text-transform:uppercase; margin-bottom:5px; }
+  .tab-group { display:flex; border:1px solid var(--border); border-radius:7px; overflow:hidden; }
+  .tab-btn { padding:5px 13px; background:var(--btn-bg); color:var(--muted); font-family:'DM Mono',monospace;
+             font-size:.61rem; letter-spacing:.06em; border:none; cursor:pointer;
+             transition:background .12s,color .12s; text-transform:uppercase; }
+  .tab-btn.active { background:var(--accent); color:#0f1117; font-weight:500; }
+  .tab-btn:not(.active):hover { color:var(--text); }
+  .tab-btn:disabled { opacity:.4; cursor:not-allowed; }
+  .reset-btn { padding:5px 13px; border-radius:6px; border:1px solid var(--border);
+               background:var(--btn-bg); color:var(--muted); font-family:'DM Mono',monospace;
+               font-size:.61rem; cursor:pointer; text-transform:uppercase; white-space:nowrap; }
+  .reset-btn:hover { border-color:var(--accent); color:var(--accent); }
+  .play-btn { padding:5px 15px; border-radius:6px; border:none; background:var(--accent);
+              color:#0f1117; font-family:'DM Mono',monospace; font-size:.61rem; font-weight:500;
+              cursor:pointer; text-transform:uppercase; user-select:none; white-space:nowrap; }
+  .play-btn:hover { opacity:.85; }
+  .play-btn.sounding { background:var(--red); color:#fff; }
+  .theme-btn { padding:5px 11px; border-radius:7px; border:1px solid var(--border);
+               background:var(--btn-bg); color:var(--muted); font-family:'DM Mono',monospace;
+               font-size:.61rem; cursor:pointer; }
+  .theme-btn:hover { border-color:var(--accent); color:var(--accent); }
+  .ctrl-row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .vdiv { width:1px; height:22px; background:var(--border); flex-shrink:0; }
+  .info-note { font-size:.57rem; font-family:'DM Mono',monospace; color:var(--muted); line-height:1.65; }
+  canvas { display:block; }
+
+  /* two-column top strip */
+  .top-strip {
+    display:grid;
+    grid-template-columns:55fr 45fr;
+    gap:8px;
+    align-items:stretch;
+  }
+  /* trace panel */
+  .trace-panel {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--panel-r); padding:9px 12px 8px;
+    display:flex; flex-direction:column; gap:4px;
+  }
+  .trace-legend {
+    font-size:.54rem; color:var(--muted); font-family:'DM Mono',monospace;
+    display:flex; gap:12px; flex-wrap:wrap; margin-top:2px;
+  }
+
+  /*
+   * STACKED CANVAS PANEL
+   * The bore canvas and all mode shape canvases are exactly the same pixel width
+   * (_CW set by JS). Each canvas draws its own labels/source in the left margin
+   * region [0, _PL] and acoustic content in [_PL, _PL+_BW], mirroring exactly.
+   * No CSS grid involved — pure canvas coordinate alignment.
+   */
+  .stacked-panel {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--panel-r); padding:10px 0 8px; overflow:hidden;
+  }
+  .stacked-panel canvas { display:block; }
+  .stk-label {
+    font-family:'DM Mono',monospace; font-size:.57rem; letter-spacing:.10em;
+    color:var(--muted); text-transform:uppercase; padding:0 16px 4px;
+  }
+  .stk-legend {
+    font-size:.54rem; color:var(--muted); font-family:'DM Mono',monospace;
+    padding:3px 16px 5px; display:flex; gap:14px; flex-wrap:wrap;
+  }
+  .stk-divider { height:1px; background:var(--border); margin:3px 0; }
+
+  /* ── perturbation panel ── */
+  .pert-panel {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--panel-r); padding:8px 14px 10px;
+  }
+  /* Header row */
+  .pert-hdr {
+    display:flex; gap:0; align-items:center;
+    border-bottom:1px solid var(--border); padding-bottom:3px; margin-bottom:0;
+    font-family:'DM Mono',monospace; font-size:.49rem; color:var(--muted);
+  }
+  .pert-hdr .ph-n   { width:50px; flex-shrink:0; text-align:right; padding-right:10px; }
+  .pert-hdr .ph-sl  { flex:1; padding:0 8px; }
+  .pert-hdr .ph-rd  { width:88px; flex-shrink:0; text-align:right; padding-right:4px; }
+  /* Data rows — each row is an independent flex container */
+  .pr {
+    display:flex; align-items:center; gap:0;
+    border-bottom:1px solid var(--border); min-height:46px;
+  }
+  .pr:last-child { border-bottom:none; }
+  .pr-n  { width:50px; flex-shrink:0; font-family:'DM Mono',monospace;
+           font-size:.63rem; font-weight:600; text-align:right; padding-right:10px; }
+  .pr-sl { flex:1; padding:2px 8px; display:flex; flex-direction:column; gap:1px; }
+  .pr-rd { width:88px; flex-shrink:0; font-family:'DM Mono',monospace; font-size:.50rem;
+           text-align:right; padding-right:4px; display:flex; flex-direction:column; gap:3px; }
+  .sl-top { font-family:'DM Mono',monospace; font-size:.50rem; color:var(--muted);
+            display:flex; justify-content:space-between; }
+  .sl-val { color:var(--accent); min-width:34px; text-align:right; }
+  input[type=range] { width:100%; accent-color:var(--accent); cursor:pointer; height:14px; }
+  .rd-f { color:var(--accent2); }
+  .rd-p { color:var(--green); }
+  .pr-rd.detuned  .rd-f { color:var(--red); }
+  .pr-rd.dephased .rd-p { color:var(--red); }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div style="text-align:center;margin-bottom:2px;">
+    <h1>Mode Cooperation Explorer</h1>
+    <div class="subtitle">v8 — frequency · phase locking · reed/jet · bore modes · pulse formation</div>
+  </div>
+
+  <!-- TOP STRIP: controls left, trace right -->
+  <div class="top-strip">
+
+    <!-- LEFT: controls -->
+    <div class="panel">
+      <div class="ctrl-row">
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <div style="font-family:'DM Mono',monospace;font-size:.50rem;color:var(--muted);">Bore</div>
+          <div class="tab-group">
+            <button class="tab-btn active" id="bore-cyl-btn" onclick="setBore('cyl')">Cylindrical</button>
+            <button class="tab-btn"        id="bore-con-btn" onclick="setBore('con')">Conical</button>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <div style="font-family:'DM Mono',monospace;font-size:.50rem;color:var(--muted);">Source end</div>
+          <div class="tab-group">
+            <button class="tab-btn active" id="bc-reed-btn" onclick="setBC('reed')">Reed (closed)</button>
+            <button class="tab-btn"        id="bc-jet-btn"  onclick="setBC('jet')">Jet (open)</button>
+          </div>
+        </div>
+        <div class="vdiv"></div>
+        <button class="reset-btn" onclick="resetAll()">↺ Reset all</button>
+        <button class="play-btn" id="play-btn">▶ Play</button>
+        <div style="font-family:'DM Mono',monospace;font-size:.53rem;color:var(--muted);white-space:nowrap;">
+          f₁ = <span id="f1-display" style="color:var(--accent);">—</span>
+        </div>
+        <button class="theme-btn" onclick="toggleTheme()">☀/☾</button>
+      </div>
+      <div style="margin-top:6px;" class="info-note" id="top-note"></div>
+    </div>
+
+    <!-- RIGHT: source signal trace -->
+    <div class="trace-panel">
+      <div class="panel-label">
+        Source signal — p(0,t) and v(0,t) at source end
+        <span id="trace-label" style="color:var(--accent2);font-size:.50rem;margin-left:6px;"></span>
+      </div>
+      <canvas id="trace-canvas" style="flex:1;width:100%;"></canvas>
+      <div class="trace-legend">
+        <span><span style="color:var(--accent)">—</span> pressure p(0,t)</span>
+        <span><span style="color:var(--green)">—</span> velocity v(0,t)</span>
+        <span style="color:var(--muted);">— — threshold ±0.5</span>
+      </div>
+    </div>
+
+  </div><!-- /top-strip -->
+
+  <!-- STACKED CANVAS PANEL: bore + mode shapes -->
+  <div class="stacked-panel" id="stacked-panel">
+    <div class="stk-label">
+      Bore (20 modes) · natural mode shapes (6 shown) — spatially aligned
+      <span id="slow-label" style="color:var(--accent2);font-size:.49rem;margin-left:8px;"></span>
+    </div>
+    <canvas id="bore-canvas"></canvas>
+    <div class="stk-legend">
+      <span>white = p(x,t) using 20 modes</span>
+      <span><span style="color:#4fc3f7">■</span> compression</span>
+      <span><span style="color:#f97316">■</span> rarefaction</span>
+    </div>
+    <div class="stk-divider"></div>
+    <!-- mode shape canvases injected here by JS -->
+    <div id="mode-canvas-stack"></div>
+  </div>
+
+  <!-- PERTURBATION CONTROLS -->
+  <div class="pert-panel" id="pert-panel">
+    <div class="panel-label">
+      Mode perturbations — Δf and Δφ for modes n=1–6
+      <span style="color:var(--muted);font-size:.50rem;font-weight:400;">
+        (modes 7–20 always cooperative in bore animation)
+      </span>
+    </div>
+    <div class="pert-hdr">
+      <div class="ph-n">n</div>
+      <div class="ph-sl">Δf — frequency offset (× f₁ nominal)</div>
+      <div class="ph-sl">Δφ — phase offset</div>
+      <div class="ph-rd">actual f / φ</div>
+    </div>
+    <div id="pert-rows"></div>
+  </div>
+
+  <!-- PHYSICS NOTE -->
+  <div class="panel">
+    <div class="panel-label">Physics</div>
+    <div class="info-note" id="physics-note"></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ════════════════════════════════════════════════════
+// CONSTANTS
+// ════════════════════════════════════════════════════
+const N_CTRL  = 6;   // modes with Δf/Δφ controls
+const N_DISP  = 20;  // modes used in bore heatmap/waveform
+const ROW_H   = 52;  // px height of each mode shape canvas row
+
+// ════════════════════════════════════════════════════
+// LAYOUT — all canvases share the same pixel width _CW
+// and identical horizontal coordinate system:
+//   [0, _PL)        — source/label region
+//   [_PL, _PL+_BW)  — acoustic bore region
+//   [_PL+_BW, _CW)  — radiation region
+// _CW, _PL, _BW, _BH computed from panel width after CSS settles.
+// ════════════════════════════════════════════════════
+let _CW = 800;   // total canvas width (px)
+let _PL = 92;    // left pad (source region)
+let _PR = 52;    // right pad (radiation region)
+let _BW = 656;   // bore width = _CW - _PL - _PR
+let _BH = 130;   // bore canvas height
+
+function measureLayout() {
+  const panel = document.getElementById('stacked-panel');
+  if (!panel) return;
+  const W = panel.clientWidth;
+  if (W < 200) return;
+  _CW = W;
+  _PL = Math.round(W * 0.115);
+  _PR = Math.round(W * 0.075);
+  _BW = W - _PL - _PR;
+  _BH = Math.round(W / 5.8);
+}
+
+function sizeCanvas(cv, h) {
+  cv.width  = _CW; cv.height = h;
+  cv.style.width  = _CW + 'px';
+  cv.style.height = h   + 'px';
+}
+
+// ════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════
+let _bore  = 'cyl';
+let _bc    = 'reed';
+let _theme = 'dark';
+
+const _deltaF   = new Float64Array(N_CTRL);
+const _deltaPhi = new Float64Array(N_CTRL);
+const _L = 1.0, _c = 1.0;
+
+let _animId = null, _animT = 0, _lastReal = null;
+let _actx = null, _playSrc = null, _playGain = null;
+
+const MC6 = ['#f0c040','#4fc3f7','#a78bfa','#f97316','#4ade80','#fb7185'];
+const SYM_PLAY = '▶', SYM_STOP = '◼';
+
+// ════════════════════════════════════════════════════
+// TIMING
+// ════════════════════════════════════════════════════
+function isClosedOpen() { return _bore === 'cyl' && _bc === 'reed'; }
+function f1Nom()        { return isClosedOpen() ? _c / (4*_L) : _c / (2*_L); }
+function slowFactor() {
+  const rt = isClosedOpen() ? 4*_L/_c : 2*_L/_c;
+  const ds = isClosedOpen() ? 6.0 : 3.0;
+  return ds / rt;
+}
+
+// ════════════════════════════════════════════════════
+// PHYSICS
+// ════════════════════════════════════════════════════
+
+// Nominal cooperative frequency, mode index n (0-based)
+function fNom(n) {
+  if (_bore === 'cyl')
+    return _bc === 'reed' ? (2*n+1)*_c/(4*_L) : (n+1)*_c/(2*_L);
+  return (n+1)*_c/(2*_L);
+}
+
+// Actual frequency: controlled modes 0..N_CTRL-1 get perturbation;
+// display-only modes N_CTRL..N_DISP-1 always run at nominal.
+function fAct(n) {
+  if (n < N_CTRL) return fNom(n) + _deltaF[n] * f1Nom();
+  return fNom(n);
+}
+function phiAct(n) { return n < N_CTRL ? _deltaPhi[n] : 0; }
+
+// ── Mode shapes ──
+// Cylindrical closed-open: cos((2n+1)πx/2)  [antinode x=0, node x=1]
+// Cylindrical open-open:   sin((n+1)πx)      [nodes at both ends]
+// Conical:                 sin((n+1)πx)/x    [Webster 1D cone, all harmonics]
+function shapeNom(xi, n) {
+  if (_bore === 'cyl') {
+    return _bc === 'reed'
+      ? Math.cos((2*n+1)*Math.PI*xi/2)
+      : Math.sin((n+1)*Math.PI*xi);
+  }
+  const kn = (n+1)*Math.PI;
+  if (xi < 1e-6) return kn;
+  return Math.sin(kn*xi) / xi;
+}
+
+// Detuned shape (uses actual wavenumber k_act = 2π·fAct(n)/c)
+// Positive Δf → shorter wavelength → node inside pipe
+// Negative Δf → longer  wavelength → node outside pipe (spills past x=L)
+function shapeAct(xi, n) {
+  const k = 2*Math.PI*fAct(n)/_c;
+  if (_bore === 'cyl') {
+    return _bc === 'reed' ? Math.cos(k*xi) : Math.sin(k*xi);
+  }
+  if (xi < 1e-6) return k;
+  return Math.sin(k*xi) / xi;
+}
+
+// Per-mode normalization of nominal shape
+const _snorm = new Float64Array(N_DISP);
+function recomputeNorms() {
+  for (let n = 0; n < N_DISP; n++) {
+    let mx = 0;
+    for (let i = 0; i <= 800; i++) mx = Math.max(mx, Math.abs(shapeNom(i/800, n)));
+    _snorm[n] = mx || 1;
+  }
+  // Recompute velocity normalization: sum of (n+1)π weights at cooperative peak
+  // This equals the raw velAt0 value when all modes are at their positive maximum.
+  let vn = 0;
+  for (let n = 0; n < N_DISP; n++) {
+    vn += amp(n) * (n+1)*Math.PI / _snorm[n];
+  }
+  _velNorm = vn / _pNorm;   // now velAt0() peaks at ≈ 1.0
+}
+
+// Per-mode normalization of detuned shape (for visual scaling)
+function normAct(n) {
+  let mx = 0;
+  for (let i = 0; i <= 500; i++) mx = Math.max(mx, Math.abs(shapeAct(i/500, n)));
+  return mx || 1;
+}
+
+function amp(n) { return 1 / (n + 1); }
+
+// Fixed pressure normalization: sum of amps over all N_DISP modes
+const _pNorm = (() => { let s=0; for(let i=0;i<N_DISP;i++) s+=amp(i); return s; })();
+
+// Pressure field using all N_DISP modes
+// Modes 0..N_CTRL-1: use fAct(n) and phiAct(n) (may be detuned/phase-shifted)
+// Modes N_CTRL..N_DISP-1: always at nominal, zero phase
+function P(xi, t) {
+  let p = 0;
+  for (let n = 0; n < N_DISP; n++) {
+    p += amp(n) * (shapeNom(xi,n)/_snorm[n])
+       * Math.cos(2*Math.PI*fAct(n)*t + phiAct(n));
+  }
+  return p / _pNorm;
+}
+
+// Velocity normalization constant — computed lazily after norms are ready.
+// For open-open cyl: d/dx sin((n+1)πx)|_{x=0} = (n+1)π
+// The raw sum peaks at Σ amp(n)·(n+1)π/_snorm[n] / _pNorm which is >> 1.
+// _velNorm scales it so the cooperative peak ≈ 1.0, matching pressure scale.
+let _velNorm = 1;  // updated by recomputeNorms()
+
+// Velocity at x=0 — normalized to same peak amplitude as pressure
+// Returns 0 for reed/conical (velocity node at closed/apex end)
+function velAt0(t) {
+  if (_bore !== 'cyl' || _bc !== 'jet') return 0;
+  let v = 0;
+  for (let n = 0; n < N_DISP; n++) {
+    const k = (n+1)*Math.PI;
+    v += amp(n) * (k/_snorm[n]) * Math.cos(2*Math.PI*fAct(n)*t + phiAct(n));
+  }
+  return v / (_pNorm * _velNorm);
+}
+
+function srcIsPressure() { return _bore === 'con' || _bc === 'reed'; }
+
+// ════════════════════════════════════════════════════
+// TRACE — analytical window over exactly N_PERIODS periods of f₁
+//
+// No buffer needed. The trace is computed directly from P(0,t) and
+// velAt0(t) over the window [t_now - N_PERIODS*T₁, t_now].
+// Since the trace duration is exactly N_PERIODS / f1Nom(), the
+// waveform repeats seamlessly: peaks at the right edge land on peaks
+// at the left edge in the cooperative state, and fail to do so when
+// a mode is detuned or phase-offset.
+// ════════════════════════════════════════════════════
+const N_PERIODS = 2;  // number of f₁ periods shown in trace
+
+// pushTrace is a no-op — we no longer use a buffer
+function pushTrace(t) { /* analytical trace needs no buffer */ }
+
+function drawTrace() {
+  const cv = document.getElementById('trace-canvas');
+  if (!cv) return;
+  const rect = cv.getBoundingClientRect();
+  const W = Math.round(rect.width), H = Math.round(rect.height);
+  if (W < 10 || H < 10) return;
+  if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+
+  const ctx = cv.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  const PAD = 10;
+  const tw = W - PAD*2, th = H - PAD*2;
+  const midY = PAD + th/2;
+  const AMP  = th/2 * 0.82;
+  const brd = css('--border'), mut = css('--muted');
+  const acc = css('--accent'), grn = css('--green');
+
+  // Window duration in acoustic time
+  const T1     = 1.0 / f1Nom();
+  const tSpan  = N_PERIODS * T1;
+  const tNow   = _animT;
+  const tStart = tNow - tSpan;
+
+  // Vertical grid: period markers
+  ctx.strokeStyle = brd; ctx.lineWidth = 0.5; ctx.setLineDash([2,4]);
+  for (let k = 0; k <= N_PERIODS; k++) {
+    const px = PAD + (k / N_PERIODS) * tw;
+    ctx.beginPath(); ctx.moveTo(px, PAD); ctx.lineTo(px, H-PAD); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // Zero line
+  ctx.strokeStyle = brd; ctx.lineWidth = 0.8;
+  ctx.beginPath(); ctx.moveTo(PAD, midY); ctx.lineTo(W-PAD, midY); ctx.stroke();
+
+  // Threshold lines
+  const THRESH = 0.50;
+  ctx.strokeStyle = mut+'55'; ctx.lineWidth = 0.8; ctx.setLineDash([4,4]);
+  [THRESH, -THRESH].forEach(v => {
+    const y = midY - v*AMP;
+    ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(W-PAD, y); ctx.stroke();
+  });
+  ctx.setLineDash([]);
+  ctx.fillStyle = mut; ctx.font = '6px DM Mono,monospace'; ctx.textAlign = 'left';
+  ctx.fillText('threshold ±0.5', PAD+2, midY - THRESH*AMP - 3);
+
+  // Sample count for drawing — one point per pixel column
+  const NPTS = Math.min(tw, 300);
+
+  // Pre-compute values
+  const pVals = new Float32Array(NPTS+1);
+  const vVals = new Float32Array(NPTS+1);
+  for (let i = 0; i <= NPTS; i++) {
+    const tau = tStart + (i / NPTS) * tSpan;
+    pVals[i] = P(0, tau);
+    vVals[i] = velAt0(tau);
+  }
+
+  // Threshold shading (pressure, above +THRESH)
+  ctx.fillStyle = acc + '18';
+  ctx.beginPath();
+  const thY = midY - THRESH*AMP;
+  ctx.moveTo(PAD, thY);
+  for (let i = 0; i <= NPTS; i++) {
+    const px = PAD + (i/NPTS)*tw;
+    const py = midY - pVals[i]*AMP;
+    ctx.lineTo(px, pVals[i] > THRESH ? Math.min(py, thY) : thY);
+  }
+  ctx.closePath(); ctx.fill();
+
+  // Draw a signal line
+  function drawLine(vals, col, lw) {
+    ctx.strokeStyle = col; ctx.lineWidth = lw;
+    ctx.beginPath();
+    for (let i = 0; i <= NPTS; i++) {
+      const px = PAD + (i/NPTS)*tw;
+      const py = midY - vals[i]*AMP;
+      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  }
+
+  drawLine(pVals, acc, 1.5);
+  drawLine(vVals, grn, 1.5);
+
+  // "now" marker at right edge
+  ctx.strokeStyle = mut+'60'; ctx.lineWidth = 1; ctx.setLineDash([2,3]);
+  ctx.beginPath(); ctx.moveTo(W-PAD, PAD); ctx.lineTo(W-PAD, H-PAD); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Period tick labels
+  ctx.fillStyle = mut; ctx.font = '6px DM Mono,monospace'; ctx.textAlign = 'center';
+  for (let k = 0; k <= N_PERIODS; k++) {
+    const px = PAD + (k/N_PERIODS)*tw;
+    ctx.fillText(k===N_PERIODS ? 'now' : k===0 ? '-'+N_PERIODS+'T₁' : '-'+(N_PERIODS-k)+'T₁', px, H-2);
+  }
+
+  // Amplitude labels
+  ctx.fillStyle = mut; ctx.textAlign = 'right';
+  ctx.fillText('+1', PAD-2, PAD+8);
+  ctx.fillText('-1', PAD-2, H-PAD-10);
+
+  // Coupling label
+  const lbl = document.getElementById('trace-label');
+  if (lbl) lbl.textContent = srcIsPressure()
+    ? '(reed/conical: p(0,t) drives gap)'
+    : '(jet: v(0,t) drives deflection)';
+}
+
+// ════════════════════════════════════════════════════
+// COLORS
+// ════════════════════════════════════════════════════
+function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+function heatColor(p) {
+  const a = Math.min(1, Math.abs(p));
+  const al = (0.08 + 0.62*a).toFixed(2);
+  return p >= 0
+    ? `rgba(20,${Math.round(130+a*80)},${Math.round(210+a*30)},${al})`
+    : `rgba(${Math.round(200+a*50)},${Math.round(90-a*60)},20,${al})`;
+}
+
+function noteNameHz(hz) {
+  if (hz < 16) return '—';
+  const sem = Math.round(12 * Math.log2(hz/440));
+  const nm  = ['A','A♯','B','C','C♯','D','D♯','E','F','F♯','G','G♯'];
+  return nm[((sem%12)+12)%12] + (4+Math.floor((sem+9)/12)) + ' ('+Math.round(hz)+' Hz)';
+}
+
+// ════════════════════════════════════════════════════
+// BORE CANVAS DRAWING
+// All spatial coordinates use _PL and _BW.
+// ════════════════════════════════════════════════════
+function drawBore(t) {
+  const cv  = document.getElementById('bore-canvas');
+  if (!cv) return;
+  if (cv.width !== _CW || cv.height !== _BH) sizeCanvas(cv, _BH);
+  const ctx = cv.getContext('2d');
+  ctx.clearRect(0, 0, _CW, _BH);
+
+  const bX0 = _PL, bX1 = _PL + _BW;
+  const PV  = Math.round(_BH * 0.15);
+  const mut = css('--muted'), acc2 = css('--accent2');
+
+  let topFn, botFn;
+  if (_bore === 'cyl') {
+    topFn = () => PV; botFn = () => _BH - PV;
+  } else {
+    const FL = 0.80;
+    topFn = x => PV * (1 + FL*(1-(x-bX0)/_BW));
+    botFn = x => _BH - PV*(1 + FL*(1-(x-bX0)/_BW));
+  }
+
+  // Heatmap using N_DISP modes
+  const COLS = Math.min(_BW, 360);
+  const ps   = new Float32Array(COLS);
+  for (let ci=0; ci<COLS; ci++) ps[ci] = P(ci/(COLS-1), t);
+
+  for (let ci=0; ci<COLS; ci++) {
+    const xi=ci/(COLS-1), px=bX0+xi*_BW;
+    ctx.fillStyle = heatColor(ps[ci]);
+    ctx.fillRect(px, topFn(px), _BW/COLS+1, botFn(px)-topFn(px));
+  }
+
+  // Pressure curve
+  ctx.strokeStyle = 'rgba(255,255,255,0.80)'; ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  for (let ci=0; ci<COLS; ci++) {
+    const xi=ci/(COLS-1), px=bX0+xi*_BW;
+    const midY=(topFn(px)+botFn(px))/2, hw=(botFn(px)-topFn(px))/2;
+    ci===0 ? ctx.moveTo(px, midY-ps[ci]*hw*0.82) : ctx.lineTo(px, midY-ps[ci]*hw*0.82);
+  }
+  ctx.stroke();
+
+  // Walls
+  ctx.strokeStyle = mut; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(bX0, topFn(bX0));
+  for (let x=bX0+2; x<=bX1; x+=2) ctx.lineTo(x, topFn(x)); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(bX0, botFn(bX0));
+  for (let x=bX0+2; x<=bX1; x+=2) ctx.lineTo(x, botFn(x)); ctx.stroke();
+
+  // BC markers
+  if (srcIsPressure()) {
+    ctx.fillStyle = mut;
+    ctx.fillRect(bX0-4, topFn(bX0)-2, 5, botFn(bX0)-topFn(bX0)+4);
+  } else {
+    ctx.strokeStyle=acc2; ctx.lineWidth=1.5; ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(bX0,topFn(bX0)-5); ctx.lineTo(bX0,botFn(bX0)+5); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  ctx.strokeStyle=acc2; ctx.lineWidth=1.5; ctx.setLineDash([3,3]);
+  ctx.beginPath(); ctx.moveTo(bX1,topFn(bX1)-5); ctx.lineTo(bX1,botFn(bX1)+5); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Labels at bore ends
+  ctx.font='8px DM Mono,monospace'; ctx.textAlign='center'; ctx.fillStyle=mut;
+  ctx.fillText(srcIsPressure()?'closed':'open', bX0, topFn(bX0)-8);
+  ctx.fillText('open', bX1, topFn(bX1)-8);
+  ctx.fillText('x=0',  bX0, botFn(bX0)+14);
+  ctx.fillText('x=L',  bX1, botFn(bX1)+14);
+
+  drawSource(ctx, bX0, _BH, topFn(bX0), botFn(bX0), ps[0], velAt0(t));
+  drawRad(ctx, bX1, _PR, _BH, t, topFn(bX1), botFn(bX1));
+}
+
+function drawSource(ctx, bX, H, tY, bY, pL, vL) {
+  const cy=H/2, acc=css('--accent'), mut=css('--muted');
+  const grn=css('--green'), red=css('--red'), brd=css('--border');
+  const mW=_PL*0.72, mX=bX-mW, mH=bY-tY+6;
+  ctx.fillStyle=css('--btn-bg'); ctx.strokeStyle=brd; ctx.lineWidth=1.2;
+  ctx.beginPath(); ctx.rect(mX,tY-3,mW,mH); ctx.fill(); ctx.stroke();
+  if (srcIsPressure()) {
+    const maxG=mH*0.40, gap=Math.max(0,(0.28+pL*0.52))*maxG;
+    const bh=Math.max(2,mW*0.06), rx0=mX+4, rx1=bX-2;
+    ctx.fillStyle=acc+'cc'; ctx.strokeStyle=acc; ctx.lineWidth=1.2;
+    ctx.beginPath(); ctx.moveTo(rx0,cy-maxG*0.26); ctx.lineTo(rx1,cy-gap/2);
+    ctx.lineTo(rx1,cy-gap/2-bh); ctx.lineTo(rx0,cy-maxG*0.26-bh); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(rx0,cy+maxG*0.26); ctx.lineTo(rx1,cy+gap/2);
+    ctx.lineTo(rx1,cy+gap/2+bh); ctx.lineTo(rx0,cy+maxG*0.26+bh); ctx.closePath(); ctx.fill(); ctx.stroke();
+    if(gap>1){ctx.fillStyle=grn+'22'; ctx.fillRect(rx0,cy-gap/2,rx1-rx0,gap);}
+    const aCol=pL>0.05?'#4fc3f7':pL<-0.05?red:mut;
+    const aLen=Math.abs(pL)*Math.min(14,_PL*0.22)+3;
+    ctx.strokeStyle=aCol; ctx.lineWidth=1.2;
+    ctx.beginPath(); ctx.moveTo(bX-2,cy); ctx.lineTo(bX-2-aLen,cy); ctx.stroke();
+    ctx.fillStyle=aCol;
+    ctx.beginPath(); ctx.moveTo(bX-2-aLen,cy-3); ctx.lineTo(bX-2-aLen-5,cy); ctx.lineTo(bX-2-aLen,cy+3); ctx.closePath(); ctx.fill();
+  } else {
+    const cH=mH*0.18;
+    ctx.fillStyle=css('--surface'); ctx.strokeStyle=brd; ctx.lineWidth=0.9;
+    ctx.fillRect(mX+2,tY-1,mW-3,cH); ctx.strokeRect(mX+2,tY-1,mW-3,cH);
+    ctx.fillRect(mX+2,bY-cH+1,mW-3,cH); ctx.strokeRect(mX+2,bY-cH+1,mW-3,cH);
+    const eX=bX-3;
+    ctx.fillStyle=mut+'bb';
+    ctx.beginPath(); ctx.moveTo(eX,cy-5); ctx.lineTo(eX+6,cy); ctx.lineTo(eX,cy+5); ctx.closePath(); ctx.fill();
+    const defl=vL*mH*0.20;
+    ctx.strokeStyle=acc+'dd'; ctx.lineWidth=1.8;
+    ctx.beginPath();
+    for(let i=0;i<=24;i++){
+      const fr=i/24, jx=mX+3+(eX-mX-3)*fr, jy=cy+defl*fr*Math.sin(Math.PI*fr);
+      i===0?ctx.moveTo(jx,jy):ctx.lineTo(jx,jy);
+    }
+    ctx.stroke();
+    const aCol=vL>0.05?grn:vL<-0.05?red:mut;
+    const aLen=Math.abs(vL)*12+3;
+    ctx.strokeStyle=aCol; ctx.lineWidth=1.2;
+    ctx.beginPath(); ctx.moveTo(bX-2,cy); ctx.lineTo(bX-2-aLen,cy); ctx.stroke();
+    ctx.fillStyle=aCol;
+    ctx.beginPath(); ctx.moveTo(bX-2-aLen,cy-3); ctx.lineTo(bX-2-aLen-5,cy); ctx.lineTo(bX-2-aLen,cy+3); ctx.closePath(); ctx.fill();
+  }
+}
+
+function drawRad(ctx, x0, rW, H, t, tY, bY) {
+  const midY=(tY+bY)/2, f1=fAct(0), sc=(rW*0.88)/(2*_c/f1);
+  for(let n=0; n<Math.min(3,N_CTRL); n++){
+    const wPx=(_c/fAct(n))*sc; if(wPx<4) continue;
+    ctx.strokeStyle=MC6[n]; ctx.lineWidth=1.0; ctx.globalAlpha=0.50-n*0.11;
+    const tr=(t*_c*sc)%wPx;
+    for(let r=tr+2; r<rW*0.96; r+=wPx){
+      ctx.beginPath(); ctx.arc(x0,midY,r,-Math.PI*0.5,Math.PI*0.5); ctx.stroke();
+    }
+  }
+  ctx.globalAlpha=1;
+}
+
+// ════════════════════════════════════════════════════
+// MODE SHAPE CANVASES (n=0..N_CTRL-1, i.e. 6 canvases)
+// Each is _CW wide, ROW_H tall — same pixel width as bore canvas.
+// Shape drawn in region [_PL, _PL+_BW].  Label drawn in [0,_PL].
+// xi=0 → pixel _PL,  xi=1 → pixel _PL+_BW.
+// ════════════════════════════════════════════════════
+function buildModeCanvasStack() {
+  const stack = document.getElementById('mode-canvas-stack');
+  stack.innerHTML = '';
+  for (let n=0; n<N_CTRL; n++) {
+    const cv = document.createElement('canvas');
+    cv.id = 'mode-cv-'+n;
+    sizeCanvas(cv, ROW_H);
+    stack.appendChild(cv);
+  }
+}
+
+function drawModeCanvases(t) {
+  for (let n=0; n<N_CTRL; n++) {
+    const cv = document.getElementById('mode-cv-'+n);
+    if (!cv) continue;
+    if (cv.width !== _CW || cv.height !== ROW_H) sizeCanvas(cv, ROW_H);
+    const ctx = cv.getContext('2d');
+    ctx.clearRect(0, 0, _CW, ROW_H);
+
+    const brd = css('--border'), mut = css('--muted'), acc2 = css('--accent2');
+    const col = MC6[n];
+    const isDetuned = Math.abs(_deltaF[n]) > 0.001;
+    const NPTS = 260;
+
+    // x-coordinate mapping: xi → canvas px
+    // xi=0 → _PL,  xi=1 → _PL+_BW
+    const xi2px = xi => _PL + xi * _BW;
+
+    // Label in left margin
+    ctx.fillStyle = col;
+    ctx.font = '11px DM Mono,monospace';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('n='+(n+1), _PL - 8, ROW_H/2);
+    ctx.textBaseline = 'alphabetic';
+
+    // Divider above row (except first row uses stk-divider)
+    if (n > 0) {
+      ctx.strokeStyle = brd; ctx.lineWidth = 0.5;
+      ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(_CW,0); ctx.stroke();
+    }
+
+    // Baseline
+    ctx.strokeStyle = brd; ctx.lineWidth = 0.6; ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(_PL, ROW_H/2); ctx.lineTo(_PL+_BW, ROW_H/2); ctx.stroke();
+    ctx.setLineDash([]);
+
+    const midY = ROW_H / 2, AMP = ROW_H * 0.42;
+
+    // Nominal envelope (dashed, always shown)
+    ctx.lineWidth = 0.8; ctx.setLineDash([2,3]);
+    for (const sign of [1,-1]) {
+      ctx.strokeStyle = col + (isDetuned ? '28' : '40');
+      ctx.beginPath();
+      for (let i=0; i<=NPTS; i++) {
+        const xi = i/NPTS;
+        const py = midY - sign*(shapeNom(xi,n)/_snorm[n])*AMP*amp(n);
+        i===0 ? ctx.moveTo(xi2px(xi),py) : ctx.lineTo(xi2px(xi),py);
+      }
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    if (isDetuned) {
+      // Detuned curve — drawn in mode's own color, red only for label text.
+      // Fill closes at the last drawn x position (not forced to xi=1),
+      // so positive Δf (node inside) shows the curve turning back naturally
+      // and negative Δf (node outside) clips at the canvas right edge.
+      const nA = normAct(n) || 1;
+      const tFacD = Math.cos(2*Math.PI*fAct(n)*t + _deltaPhi[n]);
+      const DPTS  = 420;
+
+      // Collect points up to xi=1.6 (canvas clips beyond xi=1)
+      const pts = [];
+      for (let i=0; i<=DPTS; i++) {
+        const xi = i/DPTS * 1.6;
+        pts.push({ px: xi2px(xi), py: midY - (shapeAct(xi,n)/nA)*AMP*amp(n)*tFacD });
+      }
+      // Find last point still within canvas width
+      let lastVis = pts.length - 1;
+      for (let i=pts.length-1; i>=0; i--) {
+        if (pts[i].px <= _CW) { lastVis = i; break; }
+      }
+
+      // Filled area — close at last visible point's x, back to midY
+      ctx.beginPath(); ctx.moveTo(xi2px(0), midY);
+      for (let i=0; i<=lastVis; i++) ctx.lineTo(pts[i].px, pts[i].py);
+      ctx.lineTo(pts[lastVis].px, midY); ctx.closePath();
+      ctx.fillStyle = col+'18'; ctx.fill();
+
+      // Curve in mode's own color (not red)
+      ctx.strokeStyle = col; ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      for (let i=0; i<=lastVis; i++) {
+        i===0 ? ctx.moveTo(pts[i].px, pts[i].py) : ctx.lineTo(pts[i].px, pts[i].py);
+      }
+      ctx.stroke();
+
+      // x=L marker
+      ctx.strokeStyle=mut; ctx.lineWidth=1.2; ctx.setLineDash([3,3]);
+      ctx.beginPath(); ctx.moveTo(xi2px(1),4); ctx.lineTo(xi2px(1),ROW_H-4); ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Label in red (text only — the curve color is unchanged)
+      const nodeDir = _deltaF[n]>0 ? 'node inside pipe (Δf>0)' : 'node outside pipe (Δf<0)';
+      ctx.fillStyle=css('--red'); ctx.font='6px DM Mono,monospace'; ctx.textAlign='right';
+      ctx.fillText('Δf='+_deltaF[n].toFixed(3)+'  '+nodeDir, xi2px(1)-4, 9);
+
+    } else {
+      // Cooperative animated shape
+      const tFac = Math.cos(2*Math.PI*fAct(n)*t + _deltaPhi[n]);
+
+      ctx.beginPath(); ctx.moveTo(xi2px(0), midY);
+      for (let i=0; i<=NPTS; i++) {
+        const xi=i/NPTS;
+        ctx.lineTo(xi2px(xi), midY-(shapeNom(xi,n)/_snorm[n])*AMP*amp(n)*tFac);
+      }
+      ctx.lineTo(xi2px(1), midY); ctx.closePath();
+      ctx.fillStyle = col+'20'; ctx.fill();
+
+      ctx.strokeStyle=col; ctx.lineWidth=1.6;
+      ctx.beginPath();
+      for (let i=0; i<=NPTS; i++) {
+        const xi=i/NPTS;
+        const py=midY-(shapeNom(xi,n)/_snorm[n])*AMP*amp(n)*tFac;
+        i===0?ctx.moveTo(xi2px(xi),py):ctx.lineTo(xi2px(xi),py);
+      }
+      ctx.stroke();
+
+      // freq label
+      ctx.fillStyle=col; ctx.font='6px DM Mono,monospace'; ctx.textAlign='right';
+      ctx.fillText('f='+fAct(n).toFixed(3), xi2px(1)-4, 9);
+    }
+
+    // x=L tick (right edge of bore)
+    ctx.strokeStyle=mut+'55'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(xi2px(1),4); ctx.lineTo(xi2px(1),ROW_H-4); ctx.stroke();
+
+    // x=0 alignment marker (left edge of bore)
+    ctx.strokeStyle=acc2+'40'; ctx.lineWidth=0.8;
+    ctx.beginPath(); ctx.moveTo(xi2px(0),2); ctx.lineTo(xi2px(0),ROW_H-2); ctx.stroke();
+  }
+}
+
+// ════════════════════════════════════════════════════
+// PERTURBATION PANEL (separate, below mode canvases)
+// ════════════════════════════════════════════════════
+function buildPertPanel() {
+  const el = document.getElementById('pert-rows');
+  el.innerHTML = '';
+  for (let n=0; n<N_CTRL; n++) {
+    const col = MC6[n];
+    // Each row is an independent flex container — no shared grid, no width coupling.
+    // .pr-sl gets flex:1 so sliders expand to fill available space.
+    const r = document.createElement('div');
+    r.className = 'pr';
+    r.innerHTML = `
+      <div class="pr-n" style="color:${col}">n=${n+1}</div>
+      <div class="pr-sl">
+        <div class="sl-top">
+          <span>Δf <span style="font-size:.43rem;color:var(--muted)">nom.${fNom(n).toFixed(3)}</span></span>
+          <span class="sl-val" id="df-val-${n}">0.000</span>
+        </div>
+        <input type="range" id="df-sl-${n}" min="-0.15" max="0.15" step="0.005" value="0">
+      </div>
+      <div class="pr-sl">
+        <div class="sl-top"><span>Δφ</span><span class="sl-val" id="dp-val-${n}">0.00π</span></div>
+        <input type="range" id="dp-sl-${n}" min="-1" max="1" step="0.02" value="0">
+      </div>
+      <div class="pr-rd" id="rd-${n}">
+        <span class="rd-f" id="rd-f-${n}">f=${fNom(n).toFixed(3)}</span>
+        <span class="rd-p" id="rd-p-${n}">φ=0π</span>
+      </div>`;
+    el.appendChild(r);
+    document.getElementById('df-sl-'+n).addEventListener('input', ()=>onDf(n));
+    document.getElementById('dp-sl-'+n).addEventListener('input', ()=>onDp(n));
+  }
+}
+
+function onDf(n){
+  _deltaF[n]=+document.getElementById('df-sl-'+n).value;
+  document.getElementById('df-val-'+n).textContent=_deltaF[n].toFixed(3);
+  updateReadouts();
+}
+function onDp(n){
+  _deltaPhi[n]=+document.getElementById('dp-sl-'+n).value*Math.PI;
+  const v=+document.getElementById('dp-sl-'+n).value;
+  document.getElementById('dp-val-'+n).textContent=v.toFixed(2)+'π';
+  updateReadouts();
+}
+function updateReadouts(){
+  for(let n=0;n<N_CTRL;n++){
+    const fEl=document.getElementById('rd-f-'+n);
+    const pEl=document.getElementById('rd-p-'+n);
+    const rd =document.getElementById('rd-'+n);
+    if(!fEl) continue;
+    fEl.textContent='f='+fAct(n).toFixed(3);
+    pEl.textContent='φ='+(_deltaPhi[n]/Math.PI).toFixed(2)+'π';
+    if(rd) rd.className='pr-rd'
+      +(Math.abs(_deltaF[n])>0.001?' detuned':'')
+      +(Math.abs(_deltaPhi[n])>0.05?' dephased':'');
+  }
+}
+
+// ════════════════════════════════════════════════════
+// ANIMATION
+// ════════════════════════════════════════════════════
+function animFrame(ts){
+  if(_lastReal===null) _lastReal=ts;
+  const dt=Math.min((ts-_lastReal)/1000, 0.05);
+  _lastReal=ts;
+  _animT+=dt/slowFactor();
+  pushTrace(_animT);
+  drawBore(_animT);
+  drawModeCanvases(_animT);
+  drawTrace();
+  _animId=requestAnimationFrame(animFrame);
+}
+function startAnim(){
+  if(_animId) cancelAnimationFrame(_animId);
+  _lastReal=null;
+  _animId=requestAnimationFrame(animFrame);
+}
+
+// ════════════════════════════════════════════════════
+// AUDIO
+// ════════════════════════════════════════════════════
+function ensureAudio(){
+  if(!_actx) _actx=new(window.AudioContext||window.webkitAudioContext)();
+  if(_actx.state==='suspended') _actx.resume();
+}
+function startPlay(){
+  ensureAudio(); stopPlay();
+  const sr=_actx.sampleRate, f1r=f1Nom()*440;
+  const pLen=Math.max(256, Math.round(sr/Math.max(f1r,20)));
+  const buf=_actx.createBuffer(1,pLen,sr), data=buf.getChannelData(0);
+  // Use only N_CTRL modes for audio (controlled ones)
+  for(let n=0;n<N_CTRL;n++){
+    const a=amp(n)*Math.exp(-0.18*n);
+    const om=2*Math.PI*fAct(n)*440;
+    for(let i=0;i<pLen;i++) data[i]+=a*Math.sin(om*i/sr+_deltaPhi[n]);
+  }
+  let mx=0; for(let i=0;i<pLen;i++) mx=Math.max(mx,Math.abs(data[i]));
+  if(mx>0) for(let i=0;i<pLen;i++) data[i]=data[i]/mx*0.82;
+  const src=_actx.createBufferSource(); src.buffer=buf; src.loop=true;
+  const gain=_actx.createGain();
+  gain.gain.setValueAtTime(0,_actx.currentTime);
+  gain.gain.linearRampToValueAtTime(1,_actx.currentTime+0.015);
+  src.connect(gain); gain.connect(_actx.destination); src.start();
+  _playSrc=src; _playGain=gain;
+  document.getElementById('play-btn').textContent=SYM_STOP;
+  document.getElementById('play-btn').classList.add('sounding');
+}
+function stopPlay(){
+  if(_playGain){
+    try{
+      _playGain.gain.setValueAtTime(_playGain.gain.value,_actx.currentTime);
+      _playGain.gain.linearRampToValueAtTime(0,_actx.currentTime+0.02);
+      _playSrc.stop(_actx.currentTime+0.025);
+    }catch(e){}
+  }
+  _playSrc=null; _playGain=null;
+  document.getElementById('play-btn').textContent=SYM_PLAY;
+  document.getElementById('play-btn').classList.remove('sounding');
+}
+function wirePlay(){
+  const btn=document.getElementById('play-btn');
+  btn.addEventListener('mousedown',  e=>{e.preventDefault();startPlay();});
+  btn.addEventListener('touchstart', e=>{e.preventDefault();startPlay();},{passive:false});
+  btn.addEventListener('mouseup',    ()=>stopPlay());
+  btn.addEventListener('mouseleave', ()=>stopPlay());
+  btn.addEventListener('touchend',   ()=>stopPlay());
+}
+
+// ════════════════════════════════════════════════════
+// CONTROLS
+// ════════════════════════════════════════════════════
+function clearPerturbations(){
+  for(let n=0;n<N_CTRL;n++){ _deltaF[n]=0; _deltaPhi[n]=0; }
+}
+function setBore(b){
+  _bore=b; stopPlay(); clearPerturbations();
+  document.getElementById('bore-cyl-btn').classList.toggle('active',b==='cyl');
+  document.getElementById('bore-con-btn').classList.toggle('active',b==='con');
+  const jetBtn=document.getElementById('bc-jet-btn');
+  if(b==='con'){
+    jetBtn.disabled=true; jetBtn.title='Conical: apex always pressure-coupled';
+    _bc='reed';
+    document.getElementById('bc-reed-btn').classList.add('active');
+    document.getElementById('bc-jet-btn').classList.remove('active');
+  } else {
+    jetBtn.disabled=false; jetBtn.title='';
+  }
+  recomputeNorms(); rebuild(); updateNotes();
+}
+function setBC(bc){
+  if(_bore==='con') return;
+  _bc=bc; stopPlay(); clearPerturbations();
+  document.getElementById('bc-reed-btn').classList.toggle('active',bc==='reed');
+  document.getElementById('bc-jet-btn').classList.toggle('active', bc==='jet');
+  recomputeNorms(); rebuild(); updateNotes();
+}
+function resetAll(){
+  stopPlay(); clearPerturbations();
+  for(let n=0;n<N_CTRL;n++){
+    const ds=document.getElementById('df-sl-'+n);
+    const ps=document.getElementById('dp-sl-'+n);
+    if(ds) ds.value='0';
+    if(ps) ps.value='0';
+    const dv=document.getElementById('df-val-'+n); if(dv) dv.textContent='0.000';
+    const pv=document.getElementById('dp-val-'+n); if(pv) pv.textContent='0.00π';
+  }
+  updateReadouts();
+}
+function toggleTheme(){
+  _theme=_theme==='dark'?'light':'dark';
+  document.documentElement.setAttribute('data-theme',_theme==='light'?'light':'');
+}
+function rebuild(){
+  measureLayout();
+  const boreCv=document.getElementById('bore-canvas');
+  if(boreCv) sizeCanvas(boreCv, _BH);
+  buildModeCanvasStack();
+  buildPertPanel();
+  updateReadouts();
+}
+function updateNotes(){
+  document.getElementById('f1-display').textContent=noteNameHz(f1Nom()*440);
+  document.getElementById('slow-label').textContent=
+    'round-trip='+(isClosedOpen()?'6':'3')+'s · f₁='+fNom(0).toFixed(3)+'(norm.)';
+  let note;
+  if(_bore==='con'){
+    note='Conical bore: mode shapes sin((n+1)πx)/x — all harmonics. Apex always pressure-coupled (reed). '+
+         'Jet toggle disabled. 20 modes in bore animation; sliders control modes 1–6.';
+  } else if(isClosedOpen()){
+    note='Cylindrical + reed (closed-open): odd harmonics only. Pressure antinode at x=0. '+
+         '20 modes in bore animation (modes 7–20 stay cooperative). '+
+         'Detuning a mode shifts its node — watch it spill out of the pipe.';
+  } else {
+    note='Cylindrical + jet (open-open): all harmonics. Velocity antinode at x=0. '+
+         '20 modes in bore animation. Detuning shifts the node position.';
+  }
+  document.getElementById('top-note').textContent=note;
+}
+function updatePhysicsNote(){
+  document.getElementById('physics-note').innerHTML=
+    '<strong>20 modes in the bore:</strong> the heatmap and pressure curve sum 20 harmonics with '+
+    'amplitudes 1/(n+1). The superposition approximates a sharp periodic pulse at the source end. '+
+    'Modes 7–20 are always cooperative; only modes 1–6 have controls.<br><br>'+
+    '<strong>Detuning (Δf ≠ 0):</strong> the mode\'s wavelength shifts. '+
+    'Positive Δf → shorter wavelength → node lands inside the pipe (red curve ends before x=L). '+
+    'Negative Δf → longer wavelength → node lands outside the pipe (red curve overshoots x=L). '+
+    'A reflected wave at x=L would arrive with the wrong phase — no standing wave is possible.<br><br>'+
+    '<strong>Phase offset (Δφ ≠ 0):</strong> correct frequency but wrong timing. '+
+    'The mode\'s contribution at x=0 no longer aligns with the others. '+
+    'The cooperative pressure pulse degrades.<br><br>'+
+    '<strong>Conical bore:</strong> sin((n+1)πx)/x — all harmonics including even ones. '+
+    'This is why saxophones and oboes overblow at the octave (2f₁), not the twelfth (3f₁) like clarinets.';
+}
+
+// ════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════
+window.addEventListener('load', ()=>{
+  measureLayout();
+  recomputeNorms();
+  buildModeCanvasStack();
+  buildPertPanel();
+  updateNotes();
+  updatePhysicsNote();
+  wirePlay();
+  startAnim();
+});
+window.addEventListener('resize', ()=>{
+  rebuild();
+  updateNotes();
+});
+</script>
+</body>
+</html>
